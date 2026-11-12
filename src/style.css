@@ -126,3 +126,17 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0d1014; col
   #slots { bottom: 170px; width: 150px; }
   #feed { display: none; }
 }
+
+/* ---------- safe zone ---------- */
+#zone { position: absolute; right: 16px; bottom: 246px; min-width: 220px; font-size: 13px; text-align: right; white-space: nowrap; }
+#zone .bar { margin-top: 4px; height: 4px; background: rgba(0,0,0,.5); border-radius: 2px; overflow: hidden; }
+#zone-fill { display: block; height: 100%; width: 100%; background: #4f9bff; margin-left: auto; }
+#zone.shrink #zone-fill { background: #ff7a2a; }
+#zone.danger #zone-text { color: #ff6a5a; font-weight: 700; }
+#slots { bottom: 286px; }
+#zonefx { position: fixed; inset: 0; z-index: 8; pointer-events: none; opacity: 0; transition: opacity .4s;
+  background: radial-gradient(ellipse at center, rgba(50,120,255,.10), rgba(20,60,210,.42)); }
+@media (max-width: 700px) {
+  #zone { bottom: 166px; min-width: 150px; font-size: 11px; }
+  #slots { bottom: 200px; }
+}

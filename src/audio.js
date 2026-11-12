@@ -104,6 +104,7 @@ export class Sfx {
     this._noise(0.07, 'lowpass', run ? 900 : 650, 200, run ? 0.13 : 0.08, 0.07);
   }
 
+  alarm() { if (this.ctx) { this._tone("square", 620, 620, 0.06, 0.18); this._tone("square", 470, 470, 0.06, 0.22, 0.2); this._tone("square", 620, 620, 0.06, 0.18, 0.45); } }
   hurt() { if (this.ctx) { this._tone('sawtooth', 190, 90, 0.2, 0.22); this._noise(0.1, 'lowpass', 700, 200, 0.25, 0.1); } }
   heal() { if (this.ctx) { this._tone('sine', 440, 660, 0.08, 0.2); this._tone('sine', 660, 880, 0.06, 0.25, 0.1); } }
 }

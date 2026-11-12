@@ -11,6 +11,7 @@ import { Loot } from './game/loot.js';
 import { Targets } from './game/targets.js';
 import { Effects } from './game/effects.js';
 import { Combat } from './game/combat.js';
+import { Zone } from './game/zone.js';
 
 const $ = (id) => document.getElementById(id);
 const setLoading = (t) => { $('loading-text').textContent = t; };
@@ -70,6 +71,7 @@ async function main() {
   const targets = new Targets(scene, terrain, world);
   const fx = new Effects(scene);
   const sfx = new Sfx();
+  const zone = new Zone(scene, terrain, world);
 
   const input = new Input(renderer.domElement);
   const player = new Player(scene, terrain, world.colliders);
@@ -105,6 +107,15 @@ async function main() {
   let respawnT = 0;
   player.onDeath = () => { respawnT = 3; combat.say('你倒下了…'); };
 
+  // The zone starts with the match (first click) and restarts when the player respawns.
+  const newMatch = () => zone.start((Math.random() * 0xffffffff) >>> 0);
+  zone.onEvent = (kind, phase) => {
+    if (kind === 'new') combat.say(`第 ${phase + 1} 圈：新的安全區已標在地圖上（白圈）`);
+    else if (kind === 'shrink') { combat.say('毒圈開始縮小！'); sfx.alarm(); }
+    else { combat.say('最後一圈'); sfx.alarm(); }
+  };
+  let zoneTick = 0;
+
   function updateSun() {
     const p = player.pos;
     // snap to shadow texels to avoid shimmering
@@ -120,10 +131,12 @@ async function main() {
   startBtn.classList.remove('hidden');
   startBtn.textContent = '點擊開始';
   startBtn.onclick = () => { sfx.resume(); input.lock(); };
+  let started = false;
   input.onLockChange = (locked) => {
     overlay.classList.toggle('hidden', locked);
     $('hud').classList.toggle('hidden', !locked);
     if (!locked) { setLoading('已暫停'); startBtn.textContent = '繼續'; }
+    else if (!started) { started = true; newMatch(); combat.say('安全區已標在地圖上，待在白圈內'); }
   };
   addEventListener('keydown', (e) => { if (e.code === 'KeyM' && input.locked) hud.toggleBig(); });
   // Keep the canvas matched to the window (also covers a page that was loaded in a background tab at size 0).
@@ -143,24 +156,34 @@ async function main() {
       player.update(dt, input);
       if (!player.alive && (respawnT -= dt) <= 0) {
         player.spawn(spawn.x, spawn.z, spawn.yaw);
-        combat.say('已在路思義教堂前重生');
+        combat.say('已在路思義教堂前重生，新的一局開始');
+        newMatch();
       }
     } else { input.consumeMouse(); player.animate(0); }
     rig.update(dt, player, combat.view);
-    if (live) combat.update(dt);
+    if (live) {
+      combat.update(dt);
+      zone.update(dt, camera);
+      // outside the wall: lose health once a second
+      if (player.alive && zone.outside(player.pos.x, player.pos.z) > 0) {
+        zoneTick += dt;
+        if (zoneTick >= 1) { zoneTick -= 1; player.damage(zone.dps); }
+      } else zoneTick = 0;
+    }
     loot.update(player.pos);
     targets.update(dt);
     fx.update(dt, camera);
     updateSun();
     hud.update(dt, player, raw);
     hud.updateCombat(dt, combat, player, rig, input);
+    hud.updateZone(zone, player);
     input.endFrame();
     renderer.render(scene, camera);
   }
 
   const clock = new THREE.Clock();
   // game.step(dt) advances one frame by hand (used for automated testing).
-  window.game = { scene, camera, renderer, player, world, terrain, input, hud, rig, combat, loot, targets, fx, sfx, step: (dt = 1 / 60) => frame(dt, dt) };
+  window.game = { scene, camera, renderer, player, world, terrain, input, hud, rig, combat, loot, targets, fx, sfx, zone, step: (dt = 1 / 60) => frame(dt, dt) };
   renderer.setAnimationLoop(() => {
     if (window.game.freeze) { clock.getDelta(); renderer.render(scene, camera); return; }   // debug: hold the simulation still
     const raw = clock.getDelta();

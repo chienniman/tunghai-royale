@@ -24,6 +24,7 @@ export class HUD {
     this.places = this._places();
     this.lastLoc = '';
     this.targets = null;
+    this.zone = null;
     this._initCombat();
   }
 
@@ -90,7 +91,60 @@ export class HUD {
     const [cx, cz] = this._toPx(player.pos.x, player.pos.z, s);
     ctx.fillStyle = '#222'; ctx.fillRect(0, 0, W, W);
     ctx.drawImage(src, cx - view * s / 2, cz - view * s / 2, view * s, view * s, 0, 0, W, W);
+    if (this.zone && this.zone.active) {
+      const k = W / view;
+      this._drawZone(ctx, W, W, (x, z) => [(x - player.pos.x) * k + W / 2, (z - player.pos.z) * k + W / 2], k, player);
+    }
     this._arrow(ctx, W / 2, W / 2, player.yaw, 7);
+  }
+
+  // Blue = where the wall is now (everything outside it is shaded), white = the next safe circle.
+  _drawZone(ctx, W, H, toPx, k, player) {
+    const z = this.zone;
+    const [cx, cy] = toPx(z.x, z.z);
+    ctx.save();
+    ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.arc(cx, cy, Math.max(0.5, z.r * k), 0, Math.PI * 2, true);
+    ctx.fillStyle = 'rgba(40,100,255,.28)'; ctx.fill('evenodd');
+    ctx.beginPath(); ctx.arc(cx, cy, Math.max(0.5, z.r * k), 0, Math.PI * 2);
+    ctx.strokeStyle = '#4f9bff'; ctx.lineWidth = 2; ctx.stroke();
+    if (z.next) {
+      const [nx, ny] = toPx(z.next.x, z.next.z);
+      ctx.beginPath(); ctx.arc(nx, ny, Math.max(0.5, z.next.r * k), 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255,255,255,.95)'; ctx.lineWidth = 1.5; ctx.stroke();
+      // not inside the next circle yet: dashed line pointing the way
+      const d = Math.hypot(player.pos.x - z.next.x, player.pos.z - z.next.z);
+      if (d > z.next.r) {
+        const [px, py] = toPx(player.pos.x, player.pos.z);
+        const e = (d - z.next.r) / d;
+        ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + (nx - px) * e, py + (ny - py) * e);
+        ctx.setLineDash([5, 4]); ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 1.5; ctx.stroke(); ctx.setLineDash([]);
+      }
+    }
+    ctx.restore();
+  }
+
+  updateZone(zone, player) {
+    this.zone = zone;
+    if (!this.zoneEl) {
+      this.zoneEl = document.getElementById('zone'); this.zoneText = document.getElementById('zone-text');
+      this.zoneFill = document.getElementById('zone-fill'); this.zoneFx = document.getElementById('zonefx');
+    }
+    this._set('zoneOn', zone.active, (v) => this.zoneEl.classList.toggle('hidden', !v));
+    if (!zone.active) { this._set('zoneOut', false, () => { this.zoneFx.style.opacity = 0; }); return; }
+    const out = zone.outside(player.pos.x, player.pos.z) > 0;
+    const mmss = (s) => { s = Math.ceil(s); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+    let text;
+    if (out) text = `你在毒圈外！每秒 -${zone.dps} 生命`;
+    else if (zone.state === 'done') text = '最後一圈';
+    else {
+      const toNext = zone.next ? Math.hypot(player.pos.x - zone.next.x, player.pos.z - zone.next.z) - zone.next.r : -1;
+      const where = toNext > 0 ? ` · 距安全區 ${Math.round(toNext)} m` : '';
+      text = zone.state === 'wait' ? `第 ${zone.phase + 1} 圈 · ${mmss(zone.remaining)} 後縮圈${where}` : `毒圈縮小中 ${mmss(zone.remaining)}${where}`;
+    }
+    this._set('zoneText', text, (v) => { this.zoneText.textContent = v; });
+    this._set('zoneCls', (out ? 'danger ' : '') + (zone.state === 'shrink' ? 'shrink' : ''), (v) => { this.zoneEl.className = v; });
+    this._set('zoneBar', Math.round(zone.remaining / zone.total * 100), (v) => { this.zoneFill.style.width = v + '%'; });
+    this._set('zoneOut', out, (v) => { this.zoneFx.style.opacity = v ? 1 : 0; });
   }
 
   _arrow(ctx, x, y, yaw, r) {
@@ -134,6 +188,7 @@ export class HUD {
       }
     }
     const [px, py] = this._toPx(player.pos.x, player.pos.z, s);
+    if (this.zone && this.zone.active) this._drawZone(ctx, W, H, (x, z) => this._toPx(x, z, s), s, player);
     this._arrow(ctx, px, py, player.yaw, 9);
   }
 

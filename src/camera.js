@@ -45,11 +45,11 @@ export class CameraRig {
       // slide the shoulder pivot back toward the head if it would sit inside a wall
       while (shoulder > 0.05 && colliders.blocked(_target.x + _right.x * shoulder, _target.y, _target.z + _right.z * shoulder)) shoulder -= 0.1;
       _target.addScaledVector(_right, Math.max(0, shoulder));
-      // pull the camera in if a wall/tree/slope is between it and the player
+      // pull the camera in if a wall or tree is between it and the player (over slopes it is lifted instead, below)
       let want = maxDist;
       for (let d = 0.4; d <= maxDist; d += 0.15) {
         const x = _target.x - look.x * d, y = _target.y - look.y * d, z = _target.z - look.z * d;
-        if (colliders.blocked(x, y, z) || y < terrain.heightAt(x, z) + 0.25) { want = Math.max(0.35, d - 0.3); break; }
+        if (colliders.blocked(x, y, z)) { want = Math.max(0.35, d - 0.3); break; }
       }
       if (this.dist < 0.3) this.dist = want;      // coming out of the scope
       this.dist += (want - this.dist) * (want < this.dist ? 1 : 1 - Math.exp(-7 * dt));
