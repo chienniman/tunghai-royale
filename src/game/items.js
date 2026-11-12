@@ -34,15 +34,27 @@ Object.assign(WEAPONS, {
   broom: { name: '竹掃把', kind: 'melee', slot: 'main', hold: 'broom', charges: 60, cooldown: 0.8, swing: 0.45,
     range: 2.7, arc: 2.1, stun: 1.6, push: 4.5, banish: 35, tag: 'sweep',
     desc: '勞作教育的老戰友。掃落葉、掃教室，掃阿飄也是剛好而已。' },
-  milk: { name: '東海鮮乳', kind: 'throw', slot: 'side', hold: 'throw', charges: 3, cooldown: 0.9, speed: 13,
+  milk: { name: '東海鮮乳', kind: 'throw', slot: 'side', hold: 'throw', charges: 3, stack: true, cooldown: 0.9, speed: 13,
     radius: 3.4, duration: 10, slow: 0.25, stun: 0.6, banish: 14, tag: 'milk', upright: true,
     desc: '牧場直送。砸在地上，阿飄踩到會滑。' },
+  bat: { name: '教官的球棒', kind: 'melee', slot: 'main', hold: 'broom', charges: 8, cooldown: 1.15, swing: 0.5,
+    range: 2.3, arc: 1.3, stun: 3.2, push: 8, banish: 60, tag: 'bat',
+    desc: '傳說教官一聽到鬧鬼，抄起球棒就把鏡子打爆。沒人知道球棒哪來的。' },
+  slip: { name: '預警單', kind: 'melee', slot: 'side', hold: 'throw', charges: 1, cooldown: 0.9, swing: 0.4,
+    range: 2.0, arc: 1.2, stun: 0.5, push: 1, banish: 100, tag: 'slip', stack: true,
+    desc: '比鬼故事還恐怖的一張紙。塞給阿飄，祂會頭也不回地跑走。' },
+  bait: { name: '雞腳凍', kind: 'throw', slot: 'side', hold: 'throw', charges: 2, cooldown: 0.9, speed: 12,
+    radius: 1.2, duration: 14, slow: 1, stun: 0, banish: 0, tag: 'food', lure: 16, upright: true, stack: true,
+    desc: '東別名產。丟出去，貪吃的阿飄會先去吃。' },
+  bell: { name: '聖誕鐘', kind: 'use', slot: 'side', hold: 'throw', charges: 2, cooldown: 12, swing: 0.6,
+    range: 38, stun: 5, push: 9, banish: 30, tag: 'bell', upright: true,
+    desc: '聖誕夜要敲九十九加一響。敲一下，附近的阿飄全部退散；但祂們會記仇。' },
 });
 
 export const HEALS = {
-  bandage: { name: '繃帶', time: 3.5, heal: 15, cap: 75, key: 'Digit4', stack: 5 },
-  medkit: { name: '急救包', time: 7, heal: 100, cap: 100, key: 'Digit5', stack: 1 },
-  drink: { name: '能量飲料', time: 4, boost: 40, cap: 100, key: 'Digit6', stack: 1 },
+  bandage: { name: 'OK 繃', time: 2.5, heal: 15, cap: 75, key: 'Digit4', stack: 3 },
+  medkit: { name: '熱八寶粥', time: 4, heal: 100, cap: 100, key: 'Digit5', stack: 1 },
+  drink: { name: '牧場冰淇淋', time: 3, boost: 40, cap: 100, key: 'Digit6', stack: 1 },
 };
 
 // ---------------------------------------------------------------- models
@@ -71,6 +83,22 @@ const GUN_PARTS = {
     P(C(0.02, 0.05, 8), 0x3a2c18, 0, 0, -0.98),                   // binding
     P(new THREE.CylinderGeometry(0.17, 0.03, 0.46, 9).rotateX(-Math.PI / 2).scale(1, 0.5, 1), TWIG, 0, 0, -1.2),   // twig head, fanned out
     P(new THREE.CylinderGeometry(0.12, 0.025, 0.36, 7).rotateX(-Math.PI / 2).scale(1, 0.4, 1), 0x7d5e33, 0, -0.015, -1.17),
+  ],
+  bat: () => [
+    P(new THREE.CylinderGeometry(0.034, 0.018, 0.86, 10).rotateX(-Math.PI / 2), 0xc9a36a, 0, 0, -0.33),   // tapered wooden bat
+    P(C(0.024, 0.03, 8), 0x2a2a2a, 0, 0, 0.11),                    // knob
+  ],
+  slip: () => [
+    P(B(0.15, 0.002, 0.21), 0xf3efe2, 0, 0.0, 0),                   // a sheet of paper
+    P(B(0.11, 0.003, 0.02), 0xc0392b, 0, 0.001, -0.07),             // the red stamp
+  ],
+  bait: () => [
+    P(B(0.12, 0.05, 0.09), 0xe9e4d4, 0, 0, 0),                      // takeaway box
+    P(B(0.122, 0.012, 0.092), 0xb5462b, 0, 0.012, 0),               // paper band
+  ],
+  bell: () => [
+    P(new THREE.CylinderGeometry(0.02, 0.06, 0.08, 12), 0xc8a13a, 0, 0.0, 0),    // brass bell
+    P(Y(0.008, 0.08), 0x5a3d1e, 0, 0.075, 0),                      // wooden handle
   ],
   milk: () => [
     P(Y(0.036, 0.13), 0xf4f1e8, 0, 0.005, 0),                     // bottle of milk
@@ -135,6 +163,10 @@ const GUN_PARTS = {
 export const GUN_POINTS = {
   broom: { muzzle: [0, 0, -1.35], support: [0, 0, -0.3], mag: [0, 0, -0.3] },
   milk: { muzzle: [0, 0.1, 0], support: [0, 0, 0], mag: [0, 0, 0] },
+  bat: { muzzle: [0, 0, -0.78], support: [0, 0, -0.14], mag: [0, 0, -0.14] },
+  slip: { muzzle: [0, 0, -0.1], support: [0, 0, 0], mag: [0, 0, 0] },
+  bait: { muzzle: [0, 0.05, 0], support: [0, 0, 0], mag: [0, 0, 0] },
+  bell: { muzzle: [0, 0, 0], support: [0, 0, 0], mag: [0, 0, 0] },
   ar: { muzzle: [0, 0.06, -0.645], support: [0, 0.02, -0.29], mag: [0, -0.1, -0.115] },
   smg: { muzzle: [0, 0.055, -0.33], support: [0, -0.02, -0.16], mag: [0, -0.14, -0.10] },
   pistol: { muzzle: [0, 0.062, -0.15], support: [-0.03, -0.03, 0.02], mag: [0, -0.08, 0.03] },
@@ -209,3 +241,7 @@ export function defaultCount(id) {
   if (it.kind === 'weapon' && WEAPONS[id].kind) return WEAPONS[id].charges;
   return 1;
 }
+
+// 平安符: carried, not held. It takes one ghost's grab for you and burns up.
+ITEMS.charm = { kind: 'charm', name: '平安符', material: matteMaterial, scale: 1.5,
+  world: grounded(mergeGeometries([P(B(0.07, 0.012, 0.1), 0xc9302c, 0, 0, 0), P(B(0.045, 0.014, 0.07), 0xe8c24a, 0, 0, 0), P(B(0.012, 0.012, 0.05), 0xc9302c, 0, 0, -0.07)])) };
