@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { createNight } from './world/atmosphere.js';
 import { buildingUniforms } from './world/buildings.js';
 import { Flashlight } from './flashlight.js';
+import { createGhostFigure, ghostClock } from './ghosts/figure.js';
 import { Terrain } from './world/terrain.js';
 import { buildWorld } from './world/world.js';
 import { Player } from './player.js';
@@ -159,6 +160,7 @@ async function main() {
     night.update(dt, camera, player.pos);
     buildingUniforms.uTime.value += dt;
     world.lamps.update(dt, player.pos);
+    ghostClock.value += dt;
     hud.update(dt, player, raw);
     hud.updateCombat(dt, combat, player, rig, input);
     hud.updateZone(zone, player);
@@ -168,7 +170,7 @@ async function main() {
 
   const clock = new THREE.Clock();
   // game.step(dt) advances one frame by hand (used for automated testing).
-  window.game = { scene, camera, renderer, player, world, terrain, input, hud, rig, combat, loot, targets, fx, sfx, zone, night, torch, step: (dt = 1 / 60) => frame(dt, dt) };
+  window.game = { scene, camera, renderer, player, world, terrain, input, hud, rig, combat, loot, targets, fx, sfx, zone, night, torch, debug: { createGhostFigure }, step: (dt = 1 / 60) => frame(dt, dt) };
   renderer.setAnimationLoop(() => {
     if (window.game.freeze) { clock.getDelta(); renderer.render(scene, camera); return; }   // debug: hold the simulation still
     const raw = clock.getDelta();
