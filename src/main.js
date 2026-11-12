@@ -17,6 +17,7 @@ import { Targets } from './game/targets.js';
 import { Effects } from './game/effects.js';
 import { Combat } from './game/combat.js';
 import { Zone } from './game/zone.js';
+import { Exits } from './game/exits.js';
 
 const $ = (id) => document.getElementById(id);
 const setLoading = (t) => { $('loading-text').textContent = t; };
@@ -58,6 +59,7 @@ async function main() {
   const sfx = new Sfx();
   const zone = new Zone(scene, terrain, world);
   const spooks = new Spooks(sfx);
+  const exits = new Exits(scene, terrain, world);
 
   const input = new Input(renderer.domElement);
   const player = new Player(scene, terrain, world.colliders);
@@ -179,7 +181,7 @@ async function main() {
 
   const clock = new THREE.Clock();
   // game.step(dt) advances one frame by hand (used for automated testing).
-  window.game = { scene, camera, renderer, player, world, terrain, input, hud, rig, combat, loot, targets, fx, sfx, zone, night, torch, spooks, ghosts, debug: { createGhostFigure }, step: (dt = 1 / 60) => frame(dt, dt) };
+  window.game = { scene, camera, renderer, player, world, terrain, input, hud, rig, combat, loot, targets, fx, sfx, zone, night, torch, spooks, ghosts, exits, debug: { createGhostFigure }, step: (dt = 1 / 60) => frame(dt, dt) };
   renderer.setAnimationLoop(() => {
     if (window.game.freeze) { clock.getDelta(); renderer.render(scene, camera); return; }   // debug: hold the simulation still
     const raw = clock.getDelta();
