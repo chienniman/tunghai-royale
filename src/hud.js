@@ -22,6 +22,8 @@ export class HUD {
     this.t = 0; this.frames = 0; this.fps = 0; this.fpsT = 0;
     this.places = this._places();
     this.lastLoc = '';
+    this.extra = '';        // extra line under the stats
+    this.markers = null;    // () => [{ x, z }] drawn as red dots on the maps
   }
 
   _buildCompass() {
@@ -71,7 +73,7 @@ export class HUD {
       this.t = 0;
       const name = this.locate(player.pos.x, player.pos.z);
       if (name !== this.lastLoc) { this.loc.textContent = name; this.lastLoc = name; }
-      this.stats.innerHTML = `海拔 ${player.pos.y.toFixed(1)} m<br>${this.fps} FPS`;
+      this.stats.innerHTML = `${this.extra ? this.extra + '<br>' : ''}海拔 ${player.pos.y.toFixed(1)} m · ${this.fps} FPS`;
     }
     this._drawMini(player);
     if (!this.big.classList.contains('hidden')) this._drawBig(player);
@@ -86,6 +88,14 @@ export class HUD {
     const [cx, cz] = this._toPx(player.pos.x, player.pos.z, s);
     ctx.fillStyle = '#222'; ctx.fillRect(0, 0, W, W);
     ctx.drawImage(src, cx - view * s / 2, cz - view * s / 2, view * s, view * s, 0, 0, W, W);
+    if (this.markers) {
+      ctx.fillStyle = '#ff3b2a'; ctx.strokeStyle = '#000'; ctx.lineWidth = 1;
+      for (const m of this.markers()) {
+        const x = W / 2 + (m.x - player.pos.x) / view * W, y = W / 2 + (m.z - player.pos.z) / view * W;
+        if (x < 0 || y < 0 || x > W || y > W) continue;
+        ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      }
+    }
     this._arrow(ctx, W / 2, W / 2, player.yaw, 7);
   }
 

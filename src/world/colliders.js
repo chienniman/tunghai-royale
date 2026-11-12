@@ -97,6 +97,76 @@ export class Colliders {
     }
   }
 
+  // Ray vs. every shape (shapes are vertical prisms from -inf up to `top`).
+  // Direction need not be normalised; t is in units of it. Returns the nearest
+  // { t, nx, ny, nz, shape } with 0 <= t <= maxT, or null.
+  raycast(ox, oy, oz, dx, dy, dz, maxT) {
+    const h = Math.hypot(dx, dz);
+    const stepT = h > 1e-6 ? this.cell / h : maxT;
+    let best = null;
+    for (let t0 = 0; t0 < maxT; t0 += stepT) {
+      const t1 = Math.min(maxT, t0 + stepT);
+      const ax = ox + dx * t0, az = oz + dz * t0, bx = ox + dx * t1, bz = oz + dz * t1;
+      for (const s of this.query(Math.min(ax, bx), Math.min(az, bz), Math.max(ax, bx), Math.max(az, bz))) {
+        const hit = Colliders.rayShape(s, ox, oy, oz, dx, dy, dz, best ? best.t : maxT);
+        if (hit) { hit.shape = s; best = hit; }
+      }
+      if (best && best.t <= t1) break;
+    }
+    return best;
+  }
+
+  static rayShape(s, ox, oy, oz, dx, dy, dz, maxT) {
+    const top = s.top ?? Infinity;
+    let bt = maxT, nx = 0, ny = 0, nz = 0, found = false;
+    const inside = s.kind === 'circle'
+      ? (ox - s.x) ** 2 + (oz - s.z) ** 2 < s.r * s.r
+      : Colliders.pointInPoly(s.pts, ox, oz);
+    if (inside) {
+      if (oy <= top) return { t: 0, nx: 0, ny: 1, nz: 0 };
+      if (dy < 0) { // coming down onto the roof
+        const t = (top - oy) / dy, x = ox + dx * t, z = oz + dz * t;
+        const on = s.kind === 'circle' ? (x - s.x) ** 2 + (z - s.z) ** 2 < s.r * s.r : Colliders.pointInPoly(s.pts, x, z);
+        if (on && t <= maxT) return { t, nx: 0, ny: 1, nz: 0 };
+      }
+      return null;
+    }
+    if (s.kind === 'circle') {
+      const fx = ox - s.x, fz = oz - s.z;
+      const a = dx * dx + dz * dz; if (a < 1e-12) return null;
+      const b = fx * dx + fz * dz, c = fx * fx + fz * fz - s.r * s.r;
+      const disc = b * b - a * c; if (disc < 0) return null;
+      const t = (-b - Math.sqrt(disc)) / a;
+      if (t >= 0 && t < bt && oy + dy * t <= top) {
+        bt = t; found = true;
+        nx = (fx + dx * t) / s.r; nz = (fz + dz * t) / s.r;
+      }
+    } else {
+      const p = s.pts;
+      for (let i = 0, j = p.length - 2; i < p.length; j = i, i += 2) {
+        const ex = p[i] - p[j], ez = p[i + 1] - p[j + 1];
+        const den = dx * ez - dz * ex; if (Math.abs(den) < 1e-12) continue;
+        const qx = p[j] - ox, qz = p[j + 1] - oz;
+        const t = (qx * ez - qz * ex) / den, u = (qx * dz - qz * dx) / den;
+        if (t < 0 || t >= bt || u < 0 || u > 1) continue;
+        if (oy + dy * t > top) continue;
+        bt = t; found = true;
+        const l = Math.hypot(ex, ez) || 1;
+        nx = ez / l; nz = -ex / l;
+        if (nx * dx + nz * dz > 0) { nx = -nx; nz = -nz; }
+      }
+    }
+    if (dy < 0 && oy > top) { // roof cap
+      const t = (top - oy) / dy;
+      if (t >= 0 && t < bt) {
+        const x = ox + dx * t, z = oz + dz * t;
+        const on = s.kind === 'circle' ? (x - s.x) ** 2 + (z - s.z) ** 2 < s.r * s.r : Colliders.pointInPoly(s.pts, x, z);
+        if (on) return { t, nx: 0, ny: 1, nz: 0 };
+      }
+    }
+    return found ? { t: bt, nx, ny, nz } : null;
+  }
+
   // True if point (x,y,z) is inside a solid shape (used to keep the camera out of walls).
   blocked(x, y, z) {
     for (const s of this.query(x, z, x, z)) {

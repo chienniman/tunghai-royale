@@ -60,6 +60,27 @@ export class Terrain {
     return cc + (b - cc) * (1 - tx) + (d - cc) * (1 - tz);
   }
 
+  // First t in [0,maxT] where the ray (unit direction) dips below the ground, or -1.
+  raycast(ox, oy, oz, dx, dy, dz, maxT) {
+    if (oy < this.heightAt(ox, oz)) return 0;
+    let t = 0, prev = 0;
+    while (t < maxT) {
+      // step proportional to clearance, so long shots stay cheap but nothing thin is skipped
+      const clear = oy + dy * t - this.heightAt(ox + dx * t, oz + dz * t);
+      prev = t;
+      t = Math.min(maxT, t + Math.min(6, Math.max(0.5, clear * 0.5)));
+      if (oy + dy * t < this.heightAt(ox + dx * t, oz + dz * t)) {
+        let lo = prev, hi = t;
+        for (let i = 0; i < 8; i++) {
+          const m = (lo + hi) / 2;
+          if (oy + dy * m < this.heightAt(ox + dx * m, oz + dz * m)) hi = m; else lo = m;
+        }
+        return hi;
+      }
+    }
+    return -1;
+  }
+
   inBounds(x, z, margin = 0) {
     return x > this.minX + margin && x < this.maxX - margin && z > this.minZ + margin && z < this.maxZ - margin;
   }

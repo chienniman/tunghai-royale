@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
+import { mergeVertices, mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { mulberry32 } from '../util.js';
 
 // trees per square metre by class-map red value
@@ -13,17 +13,34 @@ function density(r, campus) {
   return campus ? 1 / 140 : 1 / 650; // untagged ground: campus is heavily wooded
 }
 
+// Crown = one big lumpy blob plus two smaller ones, shaded darker underneath
+// (vertex colours) so the canopy reads as a volume rather than a flat ball.
 function crownGeometry(seed) {
   const rng = mulberry32(seed);
-  let g = new THREE.IcosahedronGeometry(1, 1);
-  g.deleteAttribute('normal'); g.deleteAttribute('uv');
-  g = mergeVertices(g);
-  const p = g.attributes.position;
+  const blob = (detail, r, x, y, z) => {
+    let g = new THREE.IcosahedronGeometry(1, detail);
+    g.deleteAttribute('normal'); g.deleteAttribute('uv');
+    g = mergeVertices(g);
+    const p = g.attributes.position;
+    for (let i = 0; i < p.count; i++) {
+      const k = (0.8 + rng() * 0.36) * r;
+      p.setXYZ(i, p.getX(i) * k + x, p.getY(i) * k * 0.82 + y, p.getZ(i) * k + z);
+    }
+    g.computeVertexNormals();
+    return g;
+  };
+  const a = rng() * 6.28;
+  const g = mergeGeometries([
+    blob(1, 1, 0, 0, 0),
+    blob(0, 0.62, Math.cos(a) * 0.62, -0.18, Math.sin(a) * 0.62),
+    blob(0, 0.55, Math.cos(a + 2.4) * 0.6, 0.22, Math.sin(a + 2.4) * 0.6),
+  ]);
+  const p = g.attributes.position, col = new Float32Array(p.count * 3);
   for (let i = 0; i < p.count; i++) {
-    const k = 0.78 + rng() * 0.38;
-    p.setXYZ(i, p.getX(i) * k, p.getY(i) * k * 0.85, p.getZ(i) * k);
+    const s = THREE.MathUtils.clamp(0.82 + p.getY(i) * 0.32, 0.56, 1.12); // dark belly, sunlit top
+    col[i * 3] = s; col[i * 3 + 1] = s; col[i * 3 + 2] = s * 0.96;
   }
-  g.computeVertexNormals();
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
   return g;
 }
 
@@ -54,7 +71,7 @@ export function plantTrees(terrain, ground, colliders, chunkSize = 220) {
   const trunkGeo = new THREE.CylinderGeometry(0.16, 0.28, 1, 7, 1); trunkGeo.translate(0, 0.5, 0);
   const crowns = [crownGeometry(1), crownGeometry(2)];
   const trunkMat = new THREE.MeshStandardMaterial({ color: 0x4a3b2c, roughness: 0.95 });
-  const crownMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.88 });
+  const crownMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.88, vertexColors: true });
 
   const group = new THREE.Group();
   const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), pos = new THREE.Vector3();
