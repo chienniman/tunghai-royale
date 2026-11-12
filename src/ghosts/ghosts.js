@@ -241,9 +241,17 @@ export const WANDERER = {
   onBanish(g, api) { api.vanish(g); api.setState(g, 'fled'); g.stateT = -25; },
   update(g, dt, api) {
     const p = api.player, d = api.dist(g);
+    // the director has called a breather: melt away, and leave for good if it was one of its roamers
+    if (g.data.recall) {
+      api.vanish(g); g.speed = 0; g.fig.reach(0);
+      if (g.fade >= 1 && g.data.roamer) api.remove(g);
+      return;
+    }
     if (g.state === 'stalk') {
       api.appear(g);
       if (api.lit(g)) { api.setState(g, 'recoil'); return; }
+      // too far to sense the player: drift toward wherever the director hinted
+      if (d > 26 && g.data.hint) { api.moveTo(g, g.data.hint.x, g.data.hint.z, g.type.speed * 0.8, dt); g.fig.reach(0); return; }
       // creeps while watched, rushes when the player looks away
       const speed = api.seen(g) ? 0.5 : g.type.speed * (d > 25 ? 1.6 : 1);
       api.moveTo(g, p.pos.x, p.pos.z, speed, dt);

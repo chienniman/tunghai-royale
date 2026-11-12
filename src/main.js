@@ -18,6 +18,7 @@ import { Effects } from './game/effects.js';
 import { Combat } from './game/combat.js';
 import { Zone } from './game/zone.js';
 import { Exits } from './game/exits.js';
+import { Director } from './game/director.js';
 
 const $ = (id) => document.getElementById(id);
 const setLoading = (t) => { $('loading-text').textContent = t; };
@@ -70,6 +71,8 @@ async function main() {
   const ghosts = new Ghosts({ scene, terrain, world, player, rig, camera, torch, spooks }).register('wanderer', WANDERER);
   ghosts.onSay = (text) => combat.say(text);
   combat.ghosts = ghosts;
+  const director = new Director({ ghosts, player, terrain, world, camera, rig });
+  director.table = [{ type: 'wanderer', weight: 1, max: 4 }];
   ghosts.onScare = (g, strength) => { spooks.sting(strength); rig.shake = Math.min(0.12, rig.shake + 0.08 * strength); };
 
   // Spawn in front of Luce Chapel, looking at it, with a starter kit and a small firing range on the lawn.
@@ -154,7 +157,7 @@ async function main() {
     // the torch is held at chest height in third person, at the eye in first person
     if (rig.firstPerson || rig.scoped) torchOrigin.copy(camera.position).addScaledVector(rig.look, 0.1); else torchOrigin.set(player.pos.x, player.pos.y + (player.crouch ? 0.95 : 1.32), player.pos.z);
     torch.update(dt, torchOrigin, rig.look, player.yaw);
-    if (live) ghosts.update(dt);
+    if (live) { director.update(dt); ghosts.update(dt); }
     if (live) {
       combat.update(dt);
       zone.update(dt, camera);
@@ -181,7 +184,7 @@ async function main() {
 
   const clock = new THREE.Clock();
   // game.step(dt) advances one frame by hand (used for automated testing).
-  window.game = { scene, camera, renderer, player, world, terrain, input, hud, rig, combat, loot, targets, fx, sfx, zone, night, torch, spooks, ghosts, exits, debug: { createGhostFigure }, step: (dt = 1 / 60) => frame(dt, dt) };
+  window.game = { scene, camera, renderer, player, world, terrain, input, hud, rig, combat, loot, targets, fx, sfx, zone, night, torch, spooks, ghosts, exits, director, debug: { createGhostFigure }, step: (dt = 1 / 60) => frame(dt, dt) };
   renderer.setAnimationLoop(() => {
     if (window.game.freeze) { clock.getDelta(); renderer.render(scene, camera); return; }   // debug: hold the simulation still
     const raw = clock.getDelta();
