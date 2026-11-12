@@ -225,9 +225,13 @@ export class HUD {
     // weapon + ammo
     const name = !w ? '徒手' : combat.reload ? `${def.name} · 換彈中…` : def.name;
     this._set('wname', name, (v) => { c.wname.textContent = v; });
-    const ammo = w ? `${w.loaded}|${combat.ammo[def.ammo]}` : '';
+    const isTool = !!(def && def.kind);
+    const ammo = w ? `${w.loaded}|${isTool ? '' : combat.ammo[def.ammo]}` : '';
     this._set('ammo', ammo, () => {
-      c.ammo.innerHTML = w ? `<b class="${w.loaded <= def.mag * 0.25 ? 'low' : ''}">${w.loaded}</b> / ${combat.ammo[def.ammo]}` : '';
+      // guns show loaded / reserve; tools show how many uses are left
+      c.ammo.innerHTML = !w ? '' : isTool
+        ? `<b class="${w.loaded <= Math.max(1, def.charges * 0.2) ? 'low' : ''}">${w.loaded}</b> ${def.kind === 'melee' ? '耐久' : '個'}`
+        : `<b class="${w.loaded <= def.mag * 0.25 ? 'low' : ''}">${w.loaded}</b> / ${combat.ammo[def.ammo]}`;
     });
 
     // weapon slots
@@ -283,7 +287,7 @@ export class HUD {
       this._set('invBody', sig, () => {
         const row = (a, b, none) => `<div class="row${none ? ' none' : ''}"><span>${a}</span><span>${b}</span></div>`;
         c.inv.innerHTML = '<h3>背包</h3><h4>武器</h4>' +
-          combat.slots.map((s, i) => s ? row(`${i + 1}　${WEAPONS[s.id].name}`, `${s.loaded} / ${WEAPONS[s.id].mag}`) : row(`${i + 1}　（空）`, '', true)).join('') +
+          combat.slots.map((s, i) => s ? row(`${i + 1}　${WEAPONS[s.id].name}`, WEAPONS[s.id].kind ? `${s.loaded}` : `${s.loaded} / ${WEAPONS[s.id].mag}`) : row(`${i + 1}　（空）`, '', true)).join('') +
           '<h4>彈藥</h4>' + Object.keys(AMMO).map((a) => row(AMMO[a].name, combat.ammo[a], !combat.ammo[a])).join('') +
           '<h4>補給</h4>' + Object.keys(HEALS).map((id, i) => row(`${i + 4}　${HEALS[id].name}`, '×' + h[id], !h[id])).join('');
       });

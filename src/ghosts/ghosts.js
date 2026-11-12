@@ -47,6 +47,53 @@ export class Ghosts {
 
   clear() { for (const g of [...this.list]) this.remove(g); }
 
+  // ---- being hit by the player's tools -------------------------------------------------
+  // hit: { x, z, yaw, range, arc (rad, >= 2π for all round), stun, push, banish, tag }. Returns how many ghosts it caught.
+  strike(hit) {
+    let n = 0;
+    for (const g of [...this.list]) {
+      if (g.fade > 0.85) continue;                                   // not really there
+      const dx = g.pos.x - hit.x, dz = g.pos.z - hit.z, d = Math.hypot(dx, dz);
+      if (d > hit.range + g.type.radius) continue;
+      if (hit.arc < TAU && Math.abs(angDiff(Math.atan2(-dx, -dz), hit.yaw)) > hit.arc / 2) continue;
+      if (this.hitGhost(g, hit, dx / (d || 1), dz / (d || 1))) n++;
+    }
+    return n;
+  }
+
+  // Apply one hit. A type can take over with onHit (return false = it shrugged it off).
+  hitGhost(g, hit, nx, nz) {
+    if (g.type.onHit && g.type.onHit(g, hit, this.api) === false) return false;
+    const k = g.type.weak?.[hit.tag] ?? 1;
+    if (k <= 0) return false;
+    g.stun = Math.max(g.stun, (hit.stun || 0) * k);
+    if (hit.push) g.knock = { x: nx * hit.push, z: nz * hit.push, t: 0.25 };
+    g.banish = (g.banish || 0) + (hit.banish || 0) * k;
+    if (g.banish >= 100) {
+      g.banish = 0;
+      if (g.type.onBanish) g.type.onBanish(g, this.api); else { g.fadeTo = 1; g.state = 'banished'; g.stateT = 0; }
+      this.onBanish?.(g);
+    }
+    return true;
+  }
+
+  nearestWithin(x, z, r, y) {
+    let best = null, bd = r;
+    for (const g of this.list) {
+      if (g.fade > 0.85 || (y !== undefined && (y < g.pos.y - 0.3 || y > g.pos.y + 2.2))) continue;
+      const d = Math.hypot(g.pos.x - x, g.pos.z - z);
+      if (d < bd) { bd = d; best = g; }
+    }
+    return best;
+  }
+
+  // slow-down factor from slicks on the ground (set by the tools code)
+  _slow(g) {
+    let k = 1;
+    for (const h of this.hazards || []) if ((g.pos.x - h.x) ** 2 + (g.pos.z - h.z) ** 2 < h.r * h.r) k = Math.min(k, h.slow);
+    return k;
+  }
+
   _makeApi() {
     const self = this;
     return {
@@ -90,6 +137,7 @@ export class Ghosts {
   _move(g, x, z, speed, dt) {
     const dx = x - g.pos.x, dz = z - g.pos.z, d = Math.hypot(dx, dz);
     if (d < 0.02) { g.speed = 0; return d; }
+    speed *= this._slow(g);
     const step = Math.min(d, speed * dt);
     g.pos.x += dx / d * step; g.pos.z += dz / d * step;
     if (!g.type.phase) this.world.colliders.resolve(g.pos, g.type.radius, g.pos.y);
@@ -132,7 +180,12 @@ export class Ghosts {
       if (!g.alive) continue;
       g.t += dt; g.stateT += dt;
       this._perceive(g, dt);
-      if (g.stun > 0) { g.stun -= dt; g.speed = 0; g.fig.setGlitch(Math.min(1, g.stun) * 0.6); }
+      if (g.knock) {                                  // shoved back by a hit
+        const k = Math.min(dt, g.knock.t) / 0.25;
+        g.pos.x += g.knock.x * k; g.pos.z += g.knock.z * k; g.pos.y = this.terrain.heightAt(g.pos.x, g.pos.z);
+        if ((g.knock.t -= dt) <= 0) g.knock = null;
+      }
+      if (g.stun > 0) { g.stun -= dt; g.speed = 0; g.fig.setGlitch(Math.min(1, g.stun) * 0.6); g.fig.reach(0); }
       else { g.fig.setGlitch(0); g.type.update?.(g, dt, this.api); }
       if (!g.alive) continue;
 
@@ -184,6 +237,8 @@ export class Ghosts {
 export const WANDERER = {
   name: '遊魂', figure: {}, speed: 2.6, voice: 'whisper',
   init(g) { g.state = 'stalk'; },
+  // swept or soaked enough: it scatters and stays away for a while
+  onBanish(g, api) { api.vanish(g); api.setState(g, 'fled'); g.stateT = -25; },
   update(g, dt, api) {
     const p = api.player, d = api.dist(g);
     if (g.state === 'stalk') {

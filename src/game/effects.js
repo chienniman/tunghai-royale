@@ -44,6 +44,7 @@ const PUFF = {
   roof: { color: 0x9b9a96, n: 3, size: 0.6, life: 0.5, speed: 1.6, add: false },
   tree: { color: 0x6a5238, n: 3, size: 0.5, life: 0.45, speed: 1.5, add: false },
   target: { color: 0xffc46a, n: 4, size: 0.22, life: 0.22, speed: 4.5, add: true },
+  milk: { color: 0xf4f1e8, n: 5, size: 0.8, life: 0.5, speed: 2.6, add: false },
 };
 
 export class Effects {

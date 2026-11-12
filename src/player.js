@@ -13,7 +13,21 @@ const HOLD = {
     low: [0.02, 0.21, -0.30], lowRot: [-0.55, 0.9], lowTwist: -0.15 },
   pistol: { anchor: [0.02, 0.50, 0], off: [0, -0.03, -0.5], adsX: 0, adsY: 0.05, twist: 0,
     low: [0.2, 0.08, -0.16], lowRot: [-1.05, 0], lowTwist: 0 },
+  // long two-handed tools (the broom): held low across the body, tip toward the ground; `pitch` scales how much it follows the aim
+  broom: { anchor: [0.05, 0.30, 0], off: [0, 0, -0.18], adsX: 0, adsY: 0, twist: -0.3, pitch: 0.35, tilt: -0.38,
+    low: [0.06, 0.26, -0.14], lowRot: [-0.95, 0.45], lowTwist: -0.1 },
+  // small things held in one hand, ready to throw
+  throw: { anchor: [0.22, 0.40, 0], off: [0, 0, -0.26], adsX: 0, adsY: 0, twist: 0, pitch: 0.3, tilt: 0, oneHand: true,
+    low: [0.24, 0.12, -0.08], lowRot: [-0.3, 0], lowTwist: 0 },
 };
+
+// Tool swing, s in 0..1: wind up to the right, sweep across to the left, recover.
+function swingYaw(s) {
+  const ss = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  if (s < 0.2) return 1.0 * ss(0, 0.2, s);
+  if (s < 0.6) return 1.0 - 2.2 * ss(0.2, 0.6, s);
+  return -1.2 * (1 - ss(0.6, 1, s));
+}
 
 function makeCharacter() {
   const mat = (c, r = 0.85) => new THREE.MeshStandardMaterial({ color: c, roughness: r });
@@ -98,7 +112,7 @@ export class Player {
     this.phase = 0;
     this.hp = 100; this.boost = 0; this.alive = true; this.fall = 0;
     this.weapon = null;                    // id of the gun in hand
-    this.pose = { raise: 1, ads: 0, reload: -1, recoil: 0 };   // driven by Combat
+    this.pose = { raise: 1, ads: 0, reload: -1, recoil: 0, swing: -1 };   // driven by Combat
     this._raise = 0;
     this.onStep = null; this.onHurt = null; this.onDeath = null;
     this.rig = makeCharacter();
@@ -232,7 +246,8 @@ export class Player {
     const def = WEAPONS[this.weapon], H = HOLD[def.hold], P = GUN_POINTS[this.weapon];
     this._raise += (this.pose.raise - this._raise) * k(11);
     const raise = this._raise, ads = this.pose.ads;
-    const p = aimPitch - upper.rotation.x;                    // cancel the lean so the barrel follows the aim
+    // cancel the lean so the barrel follows the aim; tools follow it only partly and have their own resting tilt
+    const p = aimPitch * (H.pitch ?? 1) + (H.tilt ?? 0) - upper.rotation.x;
     const sp = Math.sin(p), cp = Math.cos(p);
     _ready.set(H.anchor[0] + H.adsX * ads + H.off[0],
       H.anchor[1] + H.adsY * ads + H.off[1] * cp - H.off[2] * sp,
@@ -243,20 +258,39 @@ export class Player {
     gun.position.y += Math.sin(this.phase * 2) * 0.012 * A - 0.04 * rr;
     gun.position.z += rc * 0.045;
     gun.rotation.set(lerp(H.lowRot[0], p, raise) + rc * 0.06 - 0.3 * rr, lerp(H.lowRot[1], 0, raise), 0.5 * rr);
+
+    // swinging a tool (two hands: a sweep across the body) or throwing one (one hand: back, then forward)
+    const s = this.pose.swing ?? -1;
+    let sweep = 0;
+    if (s >= 0) {
+      if (H.oneHand) {
+        const back = Math.sin(Math.min(1, s / 0.35) * Math.PI * 0.5), fwd = Math.max(0, (s - 0.35) / 0.65);
+        gun.position.y += 0.22 * back - 0.1 * fwd; gun.position.z += 0.2 * back - 0.5 * fwd;
+        gun.rotation.x += 0.9 * back - 1.4 * fwd;
+      } else {
+        sweep = swingYaw(s);
+        gun.rotation.y += sweep; gun.rotation.x += 0.12;
+        gun.position.x -= sweep * 0.1; gun.position.z -= 0.06 * (1 - Math.abs(sweep));
+      }
+    }
     gun.updateMatrix();
 
-    const twist = lerp(H.lowTwist, H.twist, raise);
-    chest.rotation.y = lerp(chest.rotation.y, twist, k(14));
+    const twist = lerp(H.lowTwist, H.twist, raise) + sweep * 0.45;
+    chest.rotation.y = lerp(chest.rotation.y, twist, k(s >= 0 ? 30 : 14));
     headG.rotation.set(clamp(aimPitch, -0.7, 0.7) * 0.6 - upper.rotation.x, -chest.rotation.y, 0);
 
     _tR.set(0, -0.025, 0.012).applyMatrix4(gun.matrix);
-    _tL.fromArray(P.support);
-    if (rr > 0) _tL.lerp(_mag.fromArray(P.mag).setY(P.mag[1] - 0.1), rr);
-    _tL.applyMatrix4(gun.matrix);
     // hand targets are in the upper body's frame; the arms hang off the twisted chest
-    _tR.applyAxisAngle(Y_AXIS, -chest.rotation.y); _tL.applyAxisAngle(Y_AXIS, -chest.rotation.y);
+    _tR.applyAxisAngle(Y_AXIS, -chest.rotation.y);
     solveArm(armR, SHOULDER_R, _tR, POLE_R);
-    solveArm(armL, SHOULDER_L, _tL, POLE_L);
+    if (H.oneHand) {
+      armL.upper.rotation.set(-sn * A * 0.85, 0, -0.07); armL.fore.rotation.set(0.18 + A * 0.95, 0, 0);
+    } else {
+      _tL.fromArray(P.support);
+      if (rr > 0) _tL.lerp(_mag.fromArray(P.mag).setY(P.mag[1] - 0.1), rr);
+      _tL.applyMatrix4(gun.matrix).applyAxisAngle(Y_AXIS, -chest.rotation.y);
+      solveArm(armL, SHOULDER_L, _tL, POLE_L);
+    }
   }
 
   // World position of the muzzle of the gun in hand.

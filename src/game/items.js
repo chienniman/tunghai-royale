@@ -28,6 +28,17 @@ export const WEAPONS = {
     adsFov: 13, scope: true, head: 2.5, sound: 'sniper', hold: 'rifle' },
 };
 
+// Tools against ghosts. `charges` is durability (melee) or how many you carry (throwables).
+// tag: what kind of hit it is, so each ghost type can be weak or immune to it.
+Object.assign(WEAPONS, {
+  broom: { name: '竹掃把', kind: 'melee', slot: 'main', hold: 'broom', charges: 60, cooldown: 0.8, swing: 0.45,
+    range: 2.7, arc: 2.1, stun: 1.6, push: 4.5, banish: 35, tag: 'sweep',
+    desc: '勞作教育的老戰友。掃落葉、掃教室，掃阿飄也是剛好而已。' },
+  milk: { name: '東海鮮乳', kind: 'throw', slot: 'side', hold: 'throw', charges: 3, cooldown: 0.9, speed: 13,
+    radius: 3.4, duration: 10, slow: 0.25, stun: 0.6, banish: 14, tag: 'milk', upright: true,
+    desc: '牧場直送。砸在地上，阿飄踩到會滑。' },
+});
+
 export const HEALS = {
   bandage: { name: '繃帶', time: 3.5, heal: 15, cap: 75, key: 'Digit4', stack: 5 },
   medkit: { name: '急救包', time: 7, heal: 100, cap: 100, key: 'Digit5', stack: 1 },
@@ -53,7 +64,20 @@ const C = (r, len, seg = 10) => new THREE.CylinderGeometry(r, r, len, seg).rotat
 const Y = (r, len, seg = 12) => new THREE.CylinderGeometry(r, r, len, seg);                       // upright
 
 // Guns are modelled with the barrel along -z, +y up and the origin at the pistol grip.
+const BAMBOO = 0xb99a58, TWIG = 0x6e5129;
 const GUN_PARTS = {
+  broom: () => [
+    P(C(0.016, 1.28, 8), BAMBOO, 0, 0, -0.36),                    // bamboo pole
+    P(C(0.02, 0.05, 8), 0x3a2c18, 0, 0, -0.98),                   // binding
+    P(new THREE.CylinderGeometry(0.17, 0.03, 0.46, 9).rotateX(-Math.PI / 2).scale(1, 0.5, 1), TWIG, 0, 0, -1.2),   // twig head, fanned out
+    P(new THREE.CylinderGeometry(0.12, 0.025, 0.36, 7).rotateX(-Math.PI / 2).scale(1, 0.4, 1), 0x7d5e33, 0, -0.015, -1.17),
+  ],
+  milk: () => [
+    P(Y(0.036, 0.13), 0xf4f1e8, 0, 0.005, 0),                     // bottle of milk
+    P(Y(0.022, 0.035), 0xf4f1e8, 0, 0.085, 0),                    // neck
+    P(Y(0.025, 0.014), 0x2d5fa8, 0, 0.108, 0),                    // blue cap
+    P(Y(0.0365, 0.05), 0x2d5fa8, 0, 0.0, 0),                      // label
+  ],
   ar: () => [
     P(B(0.046, 0.07, 0.21), GUN, 0, 0.055, -0.06),              // receiver
     P(B(0.05, 0.058, 0.25), POLY, 0, 0.055, -0.29),             // handguard
@@ -109,6 +133,8 @@ const GUN_PARTS = {
 
 // Where things are on each gun, in the gun's own frame (metres).
 export const GUN_POINTS = {
+  broom: { muzzle: [0, 0, -1.35], support: [0, 0, -0.3], mag: [0, 0, -0.3] },
+  milk: { muzzle: [0, 0.1, 0], support: [0, 0, 0], mag: [0, 0, 0] },
   ar: { muzzle: [0, 0.06, -0.645], support: [0, 0.02, -0.29], mag: [0, -0.1, -0.115] },
   smg: { muzzle: [0, 0.055, -0.33], support: [0, -0.02, -0.16], mag: [0, -0.14, -0.10] },
   pistol: { muzzle: [0, 0.062, -0.15], support: [-0.03, -0.03, 0.02], mag: [0, -0.08, 0.03] },
@@ -148,7 +174,7 @@ export function handGeometry(id) {
   return handCache[id] ??= mergeGeometries(GUN_PARTS[id]());
 }
 export function gunMesh(id) {
-  const m = new THREE.Mesh(handGeometry(id), gunMaterial);
+  const m = new THREE.Mesh(handGeometry(id), WEAPONS[id].kind ? matteMaterial : gunMaterial);
   m.castShadow = true;
   return m;
 }
@@ -166,7 +192,8 @@ function grounded(geo, layOnSide) {
 // id -> { kind, name, world (geometry), material, scale, ... }
 export const ITEMS = {};
 for (const id in WEAPONS) {
-  ITEMS[id] = { kind: 'weapon', name: WEAPONS[id].name, world: grounded(mergeGeometries(GUN_PARTS[id]()), true), material: gunMaterial, scale: 1.15 };
+  const d = WEAPONS[id];
+  ITEMS[id] = { kind: 'weapon', name: d.name, world: grounded(mergeGeometries(GUN_PARTS[id]()), !d.upright), material: d.kind ? matteMaterial : gunMaterial, scale: d.kind === 'throw' ? 1.5 : 1.15 };
 }
 for (const a in AMMO) {
   ITEMS['ammo_' + a] = { kind: 'ammo', ammo: a, name: AMMO[a].name, world: grounded(mergeGeometries(WORLD_PARTS.ammo(AMMO[a].color))), material: matteMaterial, scale: 1.35 };
@@ -179,5 +206,6 @@ export function defaultCount(id) {
   const it = ITEMS[id];
   if (it.kind === 'ammo') return AMMO[it.ammo].box;
   if (it.kind === 'heal') return HEALS[id].stack;
+  if (it.kind === 'weapon' && WEAPONS[id].kind) return WEAPONS[id].charges;
   return 1;
 }

@@ -67,6 +67,7 @@ async function main() {
   const torchOrigin = new THREE.Vector3();
   const ghosts = new Ghosts({ scene, terrain, world, player, rig, camera, torch, spooks }).register('wanderer', WANDERER);
   ghosts.onSay = (text) => combat.say(text);
+  combat.ghosts = ghosts;
   ghosts.onScare = (g, strength) => { spooks.sting(strength); rig.shake = Math.min(0.12, rig.shake + 0.08 * strength); };
 
   // Spawn in front of Luce Chapel, looking at it, with a starter kit and a small firing range on the lawn.

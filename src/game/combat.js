@@ -1,6 +1,6 @@
 // Weapons, shooting, reloading, healing and the player's inventory.
 import * as THREE from 'three';
-import { WEAPONS, AMMO, HEALS, ITEMS } from './items.js';
+import { WEAPONS, AMMO, HEALS, ITEMS, gunMesh } from './items.js';
 import { castWorld } from './raycast.js';
 
 const WALK = 3.6;
@@ -25,6 +25,10 @@ export class Combat {
     this.feed = [];                         // { text, t }
     this.hitT = 0; this.hitHead = false; this.hitKill = false;
     this.shots = 0; this.hits = 0;
+    this.ghosts = null;                     // set by the game; tools act on these
+    this.swing = null;                      // { t, dur, hit, w, def } while a tool is being swung or thrown
+    this.flying = [];                       // thrown things in the air
+    this.puddles = [];                      // { x, z, r, t, slow, mesh } left by throwables
   }
 
   get weapon() { return this.cur >= 0 ? this.slots[this.cur] : null; }
@@ -57,6 +61,9 @@ export class Combat {
       this.heals[id] += count;
     } else {
       const def = WEAPONS[id];
+      if (def.kind && !loaded) loaded = def.charges;
+      const same = def.kind === 'throw' ? this.slots.find((s) => s && s.id === id) : null;
+      if (same) { same.loaded += loaded; return; }
       let slot;
       if (def.slot === 'side') slot = 2;
       else if (!this.slots[0]) slot = 0;
@@ -66,7 +73,7 @@ export class Combat {
       this.slots[slot] = { id, loaded };
       if (this.cur === -1 || this.cur === slot) { this.cur = -1; this.equip(slot); }
       else this._syncModels();
-      if (this.cur === slot && loaded === 0 && this.ammo[def.ammo] > 0) this.startReload();
+      if (!def.kind && this.cur === slot && loaded === 0 && this.ammo[def.ammo] > 0) this.startReload();
     }
   }
 
@@ -94,7 +101,7 @@ export class Combat {
   // ------------------------------------------------------------ reload / heal
   startReload() {
     const w = this.weapon, def = this.def;
-    if (!w || this.reload || w.loaded >= def.mag || this.ammo[def.ammo] <= 0) return;
+    if (!w || def.kind || this.reload || w.loaded >= def.mag || this.ammo[def.ammo] <= 0) return;
     this.cast = null;
     this.reload = { t: 0, total: def.reload };
     this.sfx.reload(!!def.shellReload);
@@ -163,7 +170,8 @@ export class Combat {
     for (const id in HEALS) if (input.hit(HEALS[id].key)) this.useHeal(id);
 
     const w = this.weapon, def = this.def;
-    const trigger = w && (def.auto ? input.mouse(0) : input.mouseHit(0));
+    const tool = !!(def && def.kind);
+    const trigger = w && (tool ? (input.mouseHit(0) || (def.kind === 'melee' && input.mouse(0))) : (def.auto ? input.mouse(0) : input.mouseHit(0)));
 
     // healing: interrupted by shooting
     if (this.cast) {
@@ -177,7 +185,7 @@ export class Combat {
     }
 
     const busy = this.swap > 0 || !!this.reload || !!this.cast;
-    const wantAds = !!w && input.mouse(2) && !busy && !p.sprinting;
+    const wantAds = !!w && !tool && input.mouse(2) && !busy && !p.sprinting;
     this.ads += ((wantAds ? 1 : 0) - this.ads) * (1 - Math.exp(-(wantAds ? 13 : 16) * dt));
     if (this.ads < 0.002) this.ads = 0;
 
@@ -186,7 +194,7 @@ export class Combat {
     p.canSprint = !this.cast && this.cooldown <= 0 && !(w && (input.mouse(0) || input.mouse(2)));
 
     // current cone of fire (also drives the crosshair)
-    if (def) {
+    if (def && !tool) {
       const base = THREE.MathUtils.lerp(def.hip, def.ads, this.ads);
       let move = 1 + Math.min(1.6, p.speed2d / WALK) * (1.1 - 0.75 * this.ads);
       if (!p.onGround) move *= 2.2;
@@ -195,10 +203,12 @@ export class Combat {
     } else this.spread = 0;
 
     if (trigger && !busy && this.cooldown <= 0 && !p.sprinting) {
-      if (w.loaded > 0) this._fire(w, def);
+      if (tool) this._useTool(w, def);
+      else if (w.loaded > 0) this._fire(w, def);
       else if (input.mouseHit(0)) { this.sfx.dry(); this.startReload(); }
     }
 
+    this._tools(dt);
     this._pose(dt, busy);
   }
 
@@ -208,9 +218,103 @@ export class Combat {
     p.pose.ads = this.ads;
     p.pose.reload = this.reload ? this.reload.t / this.reload.total : -1;
     p.pose.recoil = this.recoil;
-    this.view.ads = def ? this.ads : 0;
-    this.view.fov = def ? def.adsFov : 60;
+    p.pose.swing = this.swing ? Math.min(1, this.swing.t / this.swing.dur) : -1;
+    this.view.ads = def && !def.kind ? this.ads : 0;
+    this.view.fov = def && !def.kind ? def.adsFov : 60;
     this.view.scope = !!(def && def.scope);
+  }
+
+  // ------------------------------------------------------------ tools against ghosts
+  _useTool(w, def) {
+    this.cooldown = def.cooldown;
+    this.cast = null;
+    this.swing = { t: 0, dur: def.kind === 'melee' ? def.swing : 0.5, hit: false, w, def };
+    this.sfx.swish?.();
+  }
+
+  // Take one charge off the tool in hand; when it runs out it is gone.
+  _spend(w, def, gone) {
+    w.loaded--;
+    if (w.loaded > 0) return;
+    const i = this.slots.indexOf(w);
+    if (i < 0) return;
+    this.slots[i] = null;
+    if (gone) this.say(gone);
+    if (this.cur === i) { this.cur = -1; const next = [0, 1, 2].find((j) => this.slots[j]); if (next !== undefined) this.equip(next); }
+    this._syncModels();
+  }
+
+  _tools(dt) {
+    const { player: p, ghosts, fx } = this;
+    const s = this.swing;
+    if (s) {
+      s.t += dt;
+      const def = s.def, at = def.kind === 'melee' ? 0.45 : 0.4;
+      if (!s.hit && s.t >= s.dur * at) {
+        s.hit = true;
+        if (def.kind === 'melee') {
+          const n = ghosts ? ghosts.strike({ x: p.pos.x, z: p.pos.z, yaw: p.yaw, range: def.range, arc: def.arc, stun: def.stun, push: def.push, banish: def.banish, tag: def.tag }) : 0;
+          if (n) {
+            this.hits++; this.hitT = 0.22; this.hitHead = false; this.hitKill = false;
+            this.sfx.thwack?.(); this.rig.shake = Math.min(0.05, this.rig.shake + 0.025);
+            this._spend(s.w, def, `${def.name}壞掉了`);
+          }
+          this.shots++;
+        } else if (def.kind === 'throw') {
+          // leave the hand along the view direction with a little lift
+          const mesh = gunMesh(s.w.id); mesh.castShadow = false;
+          p.getMuzzle(_muzzle); mesh.position.copy(_muzzle);
+          p.rig.root.parent.add(mesh);
+          const look = this.rig.look;
+          this.flying.push({ def, mesh, vel: new THREE.Vector3(look.x * def.speed, look.y * def.speed + 3.2, look.z * def.speed), spin: 6 + Math.random() * 6, t: 0 });
+          this._spend(s.w, def);
+          this.shots++;
+        }
+      }
+      if (s.t >= s.dur) this.swing = null;
+    }
+
+    // things in the air
+    for (let i = this.flying.length - 1; i >= 0; i--) {
+      const f = this.flying[i], m = f.mesh;
+      f.t += dt; f.vel.y -= 18 * dt;
+      m.position.addScaledVector(f.vel, dt); m.rotation.x += f.spin * dt; m.rotation.z += f.spin * 0.6 * dt;
+      const ground = this.terrain.heightAt(m.position.x, m.position.z);
+      const wall = this.world.colliders.hit(m.position.x, m.position.y, m.position.z);
+      const direct = ghosts ? ghosts.nearestWithin(m.position.x, m.position.z, 0.9, m.position.y) : null;
+      if (m.position.y <= ground + 0.05 || wall || direct || f.t > 6) {
+        m.parent.remove(m);
+        this.flying.splice(i, 1);
+        if (wall) { m.position.x -= f.vel.x * dt * 1.5; m.position.z -= f.vel.z * dt * 1.5; }   // splash at the foot of the wall
+        this._splash(f.def, m.position.x, m.position.z, direct);
+      }
+    }
+
+    // puddles fade out
+    for (let i = this.puddles.length - 1; i >= 0; i--) {
+      const q = this.puddles[i]; q.t -= dt;
+      q.mesh.material.opacity = 0.55 * Math.min(1, q.t / 2);
+      if (q.t <= 0) { q.mesh.parent.remove(q.mesh); q.mesh.geometry.dispose(); q.mesh.material.dispose(); this.puddles.splice(i, 1); }
+    }
+    if (ghosts) ghosts.hazards = this.puddles;
+  }
+
+  _splash(def, x, z, direct) {
+    const { ghosts, fx, terrain } = this, y = terrain.heightAt(x, z);
+    for (let k = 0; k < 3; k++) fx.impact(x, y + 0.1, z, (Math.random() - 0.5) * 0.6, 1, (Math.random() - 0.5) * 0.6, 'milk');
+    this.sfx.splash?.();
+    // a slick on the ground that ghosts slip on
+    const geo = new THREE.CircleGeometry(def.radius, 28).rotateX(-Math.PI / 2);
+    const pos = geo.attributes.position;
+    for (let i = 0; i < pos.count; i++) pos.setY(i, terrain.heightAt(x + pos.getX(i), z + pos.getZ(i)) - y + 0.05);
+    const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0xf2efe6, transparent: true, opacity: 0.55, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 }));
+    mesh.position.set(x, y, z);
+    this.player.rig.root.parent.add(mesh);
+    this.puddles.push({ x, z, r: def.radius, t: def.duration, slow: def.slow, mesh });
+    if (!ghosts) return;
+    const n = ghosts.strike({ x, z, yaw: 0, range: def.radius, arc: 7, stun: def.stun, push: 0, banish: def.banish, tag: def.tag });
+    if (direct) ghosts.hitGhost(direct, { stun: def.stun * 2, push: 2, banish: def.banish * 2, tag: def.tag }, 0, 0);
+    if (n || direct) { this.hits++; this.hitT = 0.22; this.hitHead = false; this.hitKill = false; }
   }
 
   // ------------------------------------------------------------ shooting
