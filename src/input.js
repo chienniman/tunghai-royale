@@ -1,9 +1,13 @@
-// Keyboard + pointer-lock mouse input.
-const GAME_KEYS = ['Space', 'KeyW', 'KeyA', 'KeyS', 'KeyD', 'Tab', 'KeyF', 'KeyR', 'Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6'];
+// Keyboard + pointer-lock mouse input, plus a touch mode (phones / tablets) where the
+// on-screen controls in touch.js write into the same state and there is no pointer lock.
+const GAME_KEYS = ['Space', 'KeyW', 'KeyA', 'KeyS', 'KeyD', 'Tab', 'KeyF', 'KeyR', 'Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6', 'Digit7'];
 
 export class Input {
-  constructor(element) {
+  constructor(element, { touch = false } = {}) {
     this.el = element;
+    this.touch = touch;
+    this.axis = { x: 0, y: 0 }; // analogue move from the virtual stick: x = right, y = forward
+    this.sprint = false;
     this.keys = new Set();
     this.dx = 0; this.dy = 0;
     this.locked = false;
@@ -37,10 +41,30 @@ export class Input {
     document.addEventListener('pointerlockerror', () => this.onLockError?.());
   }
   lock() {
+    if (this.touch) { // "locked" just means the game has the controls; also go full screen in landscape
+      this.locked = true; this.onLockChange?.(true); this.fullscreen();
+      return;
+    }
     // Promise form exists in newer browsers; swallow rejections (handled via pointerlockerror).
     try { this.el.requestPointerLock?.()?.catch?.(() => {}); } catch { /* ignore */ }
   }
-  unlock() { document.exitPointerLock?.(); }
+  unlock() {
+    if (this.touch) {
+      this.locked = false; this.buttons.clear(); this.clicked.clear(); this.axis.x = this.axis.y = 0; this.sprint = false;
+      this.onLockChange?.(false);
+      return;
+    }
+    document.exitPointerLock?.();
+  }
+  // Best effort: not every browser allows either call (iPhone Safari has no element full screen).
+  async fullscreen() {
+    try {
+      const el = document.documentElement;
+      if (!document.fullscreenElement && !document.webkitFullscreenElement) await (el.requestFullscreen ? el.requestFullscreen({ navigationUI: 'hide' }) : el.webkitRequestFullscreen?.());
+      await screen.orientation?.lock?.('landscape');
+    } catch { /* stay windowed */ }
+  }
+  press(code) { this.pressed.add(code); }
   down(code) { return this.keys.has(code); }
   button(b) { return this.buttons.has(b); }
   consumeMouse() { const r = [this.dx, this.dy]; this.dx = this.dy = 0; return r; }

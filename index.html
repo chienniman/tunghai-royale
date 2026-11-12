@@ -2,7 +2,11 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#0d1014">
   <title>東海大逃殺 Tunghai Royale</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -24,11 +28,12 @@
 
   <div id="hud" class="hidden">
     <div id="vignette"></div>
+    <div id="scare"></div>
     <div id="scope" class="hidden"></div>
     <div id="dmg-layer"></div>
     <div id="compass"><div id="compass-strip"></div><div id="compass-marker"></div><div id="compass-deg">0</div></div>
     <div id="target"><div id="target-name"></div><div class="bar"><div id="target-fill"></div></div></div>
-    <div id="topleft"><div id="location"></div><div id="stats"></div></div>
+    <div id="topleft"><div id="location"></div><div id="clock"><i></i><span></span></div><div id="stats"></div></div>
     <div id="topright">
       <div id="minimap-wrap"><canvas id="minimap" width="220" height="220"></canvas><span class="north">N</span></div>
       <div id="killfeed"></div>
@@ -52,9 +57,11 @@
     <div id="weapons"></div>
   </div>
 
+  <div id="touch" class="hidden"></div>
+
   <div id="inventory" class="hidden">
     <div class="inv-panel">
-      <div class="inv-title">背包 <small>Tab / Esc 關閉 · 遊戲不會暫停</small></div>
+      <div class="inv-title">背包 <small>Tab / Esc 關閉 · 遊戲不會暫停</small><button id="inv-close">關閉</button></div>
       <div id="inv-body"></div>
     </div>
   </div>
@@ -64,6 +71,7 @@
       <h2>你被淘汰了</h2>
       <div id="death-text"></div>
       <div class="again">按 <b>Enter</b> 重新部署</div>
+      <button id="respawn-btn">重新部署</button>
     </div>
   </div>
 
@@ -73,7 +81,7 @@
     <div class="panel">
       <div class="kicker">TUNGHAI ROYALE</div>
       <h1>東海大逃殺</h1>
-      <div class="sub">v0.2 · 武器與物資</div>
+      <div class="sub">v0.3 · 晝夜與阿飄</div>
       <div id="loading-text">載入中…</div>
       <button id="start-btn" class="hidden">點擊開始</button>
       <div class="controls">
@@ -82,12 +90,15 @@
         <div><b>C</b> 蹲下</div><div><b>M</b> 大地圖</div>
         <div><b>左鍵</b> 開火 / 揮拳</div><div><b>右鍵</b> 瞄準</div>
         <div><b>F</b> 撿東西</div><div><b>R</b> 換彈</div>
-        <div><b>1 2 3</b> 切換武器</div><div><b>4 5 6</b> 繃帶 / 急救包 / 鮮乳</div>
+        <div><b>1 2 3</b> 切換武器</div><div><b>4 5 6 7</b> 吃東西補血</div>
         <div><b>Tab</b> 背包</div><div><b>Esc</b> 暫停</div>
       </div>
+      <div class="touch-hint">左側拖曳移動（推到底衝刺）· 右側拖曳轉視角 · 建議橫向全螢幕</div>
       <div class="credit">地圖資料 © OpenStreetMap 貢獻者（ODbL）· 地形高程 SRTM 30m（NASA / USGS）</div>
     </div>
   </div>
+
+  <div id="rotate"><div><b></b>請把手機轉成橫向</div></div>
 
   <script type="module" src="src/main.js"></script>
 </body>

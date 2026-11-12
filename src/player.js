@@ -151,7 +151,7 @@ export class Player {
     this.hp = 100; this.boost = 0; this.dead = false;
     // set by the combat system every frame
     this.armed = false; this.sens = 1; this.speedMul = 1; this.noSprint = false;
-    this.ads = 0; this.reloadK = 0; this.recoil = 0;
+    this.ads = 0; this.reloadK = 0; this.recoil = 0; this.eating = false;
     this.punchT = 0; this.deadT = 0;
     this.held = null; this.heldId = null;
     this.onDamage = null; this.onDeath = null;
@@ -206,9 +206,9 @@ export class Player {
     this.yaw -= mx * sens; this.pitch = THREE.MathUtils.clamp(this.pitch - my * sens, -1.25, 0.95);
 
     if (input.consumePressed('KeyC')) this.crouch = !this.crouch;
-    const f = (input.down('KeyW') ? 1 : 0) - (input.down('KeyS') ? 1 : 0);
-    const s = (input.down('KeyD') ? 1 : 0) - (input.down('KeyA') ? 1 : 0);
-    this.sprinting = input.down('ShiftLeft') && f > 0 && !this.crouch && !this.noSprint;
+    const f = THREE.MathUtils.clamp((input.down('KeyW') ? 1 : 0) - (input.down('KeyS') ? 1 : 0) + input.axis.y, -1, 1);
+    const s = THREE.MathUtils.clamp((input.down('KeyD') ? 1 : 0) - (input.down('KeyA') ? 1 : 0) + input.axis.x, -1, 1);
+    this.sprinting = (input.down('ShiftLeft') || input.sprint) && f > 0.5 && !this.crouch && !this.noSprint;
     if (this.sprinting) this.crouch = false;
     let speed = (this.crouch ? CROUCH : this.sprinting ? SPRINT : WALK) * this.speedMul;
     if (this.boost > 60) speed *= 1.06;
@@ -355,6 +355,10 @@ export class Player {
         reachLimb(armR, _s.set(SHOULDER_X, SHOULDER_Y, 0), _t, _p.set(0.8, -1, 0.3));
         reachLimb(armL, _s.set(-SHOULDER_X, SHOULDER_Y, 0), _t.set(-0.1, 1.36, -0.26), _p.set(-0.8, -1, 0.3));
       } else arm(armR, 1, this.phase);
+    }
+    if (this.eating) { // left hand brings the food up to the mouth
+      _t.set(-0.02, 1.6 + Math.sin(performance.now() / 110) * 0.015, -0.13);
+      reachLimb(armL, _s.set(-SHOULDER_X, SHOULDER_Y, 0), _t, _p.set(-0.9, -0.6, -0.2));
     }
   }
 

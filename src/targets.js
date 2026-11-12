@@ -57,7 +57,7 @@ export class Targets {
     const y = this.terrain.heightAt(p.x, p.z);
     g.position.set(p.x, y, p.z); g.rotation.order = 'YXZ'; g.rotation.y = yaw;
     this.scene.add(g);
-    const t = { kind: 'dummy', name: '人形靶', x: p.x, y, z: p.z, hp: DUMMY_HP, maxHp: DUMMY_HP, alive: true, obj: g, timer: 0, fall: 0 };
+    const t = { kind: 'dummy', sys: this, name: '人形靶', x: p.x, y, z: p.z, hp: DUMMY_HP, maxHp: DUMMY_HP, alive: true, obj: g, timer: 0, fall: 0 };
     this.list.push(t); return t;
   }
 
@@ -72,7 +72,7 @@ export class Targets {
     const laser = new THREE.Mesh(this.laserGeo, this.laserMat); laser.visible = false; laser.frustumCulled = false; this.scene.add(laser);
     this.scene.add(g);
     const t = {
-      kind: 'sentry', name: '哨戒機槍', x: p.x, y, z: p.z, hp: SENTRY_HP, maxHp: SENTRY_HP, alive: true, obj: g, head, lens, laser,
+      kind: 'sentry', sys: this, name: '哨戒機槍', x: p.x, y, z: p.z, hp: SENTRY_HP, maxHp: SENTRY_HP, alive: true, obj: g, head, lens, laser,
       yaw: this.rng() * 6.28, aware: 0, sees: false, losT: this.rng() * 0.2, burst: 3, cd: 1, timer: 0, scan: this.rng() < 0.5 ? 1 : -1,
     };
     head.rotation.y = t.yaw;
@@ -167,7 +167,7 @@ export class Targets {
       for (let i = 0; i < 4; i++) this.fx.puff(this._a, this._n, 'smoke');
       const drops = [ammoStack(['ammo_9mm', 'ammo_556', 'ammo_762', 'ammo_12g'][Math.floor(this.rng() * 4)], this.rng), ammoStack('ammo_556', this.rng)];
       const r = this.rng();
-      drops.push(r < 0.35 ? { id: 'medkit', n: 1 } : r < 0.7 ? { id: 'milk', n: 2 } : r < 0.85 ? { id: 'vest2', n: 1, dur: 220 } : { id: 'helmet2', n: 1, dur: 150 });
+      drops.push(r < 0.35 ? { id: 'guabao', n: 1 } : r < 0.7 ? { id: 'icecream', n: 2 } : r < 0.85 ? { id: 'vest2', n: 1, dur: 220 } : { id: 'helmet2', n: 1, dur: 150 });
       this.loot.scatter(drops, tg.x, tg.z, 1.3);
     }
     this.onKill?.(tg, dist);
@@ -236,7 +236,7 @@ export class Targets {
 
   _fire(tg, player, dist, chestY) {
     const from = this._a.set(tg.x - Math.sin(tg.yaw) * 0.7, tg.y + 1.15, tg.z - Math.cos(tg.yaw) * 0.7);
-    this.fx.muzzle(from);
+    this.fx.muzzle(from); this.audio?.shot('sentry');
     let p = 0.62 - 0.44 * (dist / SENTRY_RANGE);
     if (Math.hypot(player.vel.x, player.vel.z) > 4.5) p *= 0.6;
     if (player.crouch) p *= 0.75;

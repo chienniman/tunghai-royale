@@ -2,7 +2,7 @@ import { ITEMS, CONSUMABLES, AMMO_NAMES, AMMO_ITEM, stackLabel, tierOf } from '.
 import { weaponIcon } from './models.js';
 
 const $ = (id) => document.getElementById(id);
-const KEY_LABEL = { bandage: '4', medkit: '5', milk: '6' };
+const KEY_LABEL = Object.fromEntries(CONSUMABLES.map((id) => [id, ITEMS[id].key.replace('Digit', '')]));
 const GEAR_ICON = {
   helmet: '<svg viewBox="0 0 24 24"><path d="M3 14a9 9 0 0 1 18 0v3h-6v-3H3z"/></svg>',
   vest: '<svg viewBox="0 0 24 24"><path d="M7 3l2 3h6l2-3 3 2-2 5v11H6V10L4 5z"/></svg>',
@@ -20,13 +20,15 @@ export class CombatHUD {
       hit: $('hitmarker'), toast: $('toast'), feed: $('killfeed'), vignette: $('vignette'), dmgDir: $('dmg-dir'),
       target: $('target'), targetFill: $('target-fill'), targetName: $('target-name'), scope: $('scope'),
       inv: $('inventory'), invBody: $('inv-body'), death: $('death'), deathText: $('death-text'),
+      clock: $('clock'), scare: $('scare'),
     };
+    this.scareT = 0;
     this.toastT = 0; this.hitT = 0; this.targetT = 0; this.vigT = 0; this.dirT = 0; this.dirFrom = null;
     this.feed = [];
     this._sig = {};
     this.invOpen = false;
     this.onInvAction = null; // (action, arg) => void
-    this.el.invBody.addEventListener('mousedown', (e) => {
+    this.el.invBody.addEventListener('pointerdown', (e) => {
       const b = e.target.closest('[data-act]'); if (!b) return;
       e.preventDefault();
       this.onInvAction?.(b.dataset.act, b.dataset.arg);
@@ -59,6 +61,14 @@ export class CombatHUD {
   damaged(amount, info) {
     this.vigT = Math.min(1, 0.35 + amount / 40);
     if (info && info.x !== undefined) { this.dirFrom = { x: info.x, z: info.z }; this.dirT = 1.2; }
+  }
+
+  // Blackout flash when a ghost gets in your face.
+  scare() { this.scareT = 0.75; }
+
+  setClock(text, night) {
+    this._set('clock', this.el.clock.lastElementChild, text);
+    if (this._night !== night) { this._night = night; this.el.clock.classList.toggle('night', night); }
   }
 
   showDeath(text) { this.el.deathText.innerHTML = text; this.el.death.classList.remove('hidden'); }
@@ -96,24 +106,24 @@ export class CombatHUD {
       : '<div id="ammo"></div>'];
     inv.slots.forEach((s, i) => {
       const act = inv.active === i ? ' active' : '';
-      if (!s) { ws.push(`<div class="w empty${act}"><b>${i + 1}</b><div class="ico"></div><div class="meta"><span class="name">—</span></div></div>`); return; }
+      if (!s) { ws.push(`<div class="w empty${act}" data-slot="${i}"><b>${i + 1}</b><div class="ico"></div><div class="meta"><span class="name">—</span></div></div>`); return; }
       const d = ITEMS[s.id];
-      ws.push(`<div class="w t${d.tier}${act}"><b>${i + 1}</b><div class="ico">${weaponIcon(s.id)}</div><div class="meta"><span class="name">${d.name}</span><span class="cal">${AMMO_NAMES[d.ammoType]} · ${s.ammo}</span></div></div>`);
+      ws.push(`<div class="w t${d.tier}${act}" data-slot="${i}"><b>${i + 1}</b><div class="ico">${weaponIcon(s.id)}</div><div class="meta"><span class="name">${d.name}</span><span class="cal">${AMMO_NAMES[d.ammoType]} · ${s.ammo}</span></div></div>`);
     });
-    ws.push(`<div class="w fist${inv.active === -1 ? ' active' : ''}"><b>3</b><div class="ico"></div><div class="meta"><span class="name">空手</span></div></div>`);
+    ws.push(`<div class="w fist${inv.active === -1 ? ' active' : ''}" data-slot="-1"><b>3</b><div class="ico"></div><div class="meta"><span class="name">空手</span></div></div>`);
     this._set('weapons', el.weapons, ws.join(''));
 
     this._set('quick', el.quick, CONSUMABLES.map((id) => {
       const n = inv.items[id], using = combat.use?.id === id;
-      return `<div class="q${n ? '' : ' none'}${using ? ' using' : ''}"><b>${KEY_LABEL[id]}</b>${ITEMS[id].name}<em>${n}</em></div>`;
+      return `<div class="q${n ? '' : ' none'}${using ? ' using' : ''}" data-use="${id}"><b>${KEY_LABEL[id]}</b><span>${ITEMS[id].name}</span><em>${n}</em></div>`;
     }).join(''));
 
     // --- pickup prompt ---
     const near = combat.near.slice(0, 4);
-    this._set('pickup', el.pickup, near.map((it, i) => `<div class="t${tierOf(it.id)}${i ? '' : ' first'}">${i ? '' : '<b>F</b>'}${stackLabel(it)}</div>`).join(''));
+    this._set('pickup', el.pickup, near.map((it, i) => `<div class="t${tierOf(it.id)}${i ? '' : ' first'}" data-pick="${i}">${i ? '' : '<b>F</b>'}${stackLabel(it)}</div>`).join(''));
 
     // --- reload / use progress ---
-    const job = combat.reload ? { label: '換彈中', ...combat.reload } : combat.use ? { label: `使用${ITEMS[combat.use.id].name}`, ...combat.use } : null;
+    const job = combat.reload ? { label: '換彈中', ...combat.reload } : combat.use ? { label: `吃${ITEMS[combat.use.id].name}`, ...combat.use } : null;
     el.progress.classList.toggle('show', !!job);
     if (job) {
       el.progressFill.style.width = (100 * (1 - job.t / job.total)).toFixed(0) + '%';
@@ -132,6 +142,8 @@ export class CombatHUD {
     el.toast.style.opacity = Math.min(1, this.toastT / 0.25).toFixed(2);
     el.target.style.opacity = Math.min(1, this.targetT / 0.3).toFixed(2);
     if (this.hitT > 0 && (this.hitT -= dt) <= 0) el.hit.className = '';
+    this.scareT = Math.max(0, this.scareT - dt);
+    el.scare.style.opacity = Math.min(1, this.scareT / 0.35).toFixed(2);
     this.vigT = Math.max(0, this.vigT - dt * 1.4);
     const low = p.hp <= 25 && !p.dead ? 0.35 + 0.15 * Math.sin(performance.now() / 180) : 0;
     el.vignette.style.opacity = Math.max(this.vigT, low).toFixed(2);
@@ -166,7 +178,7 @@ export class CombatHUD {
     for (const [t, n] of Object.entries(inv.ammo)) if (n > 0) { any = true; b += row(`${ITEMS[AMMO_ITEM[t]].name} ×${n}`, btn('drop', t, '丟棄'), 't0'); }
     for (const id of CONSUMABLES) {
       const n = inv.items[id]; if (!n) continue; any = true;
-      b += row(`${ITEMS[id].name} ×${n}`, btn('use', id, '使用') + btn('drop1', id, '丟 1'), 't' + tierOf(id));
+      b += row(`${ITEMS[id].name} ×${n}`, btn('use', id, '吃') + btn('drop1', id, '丟 1'), 't' + tierOf(id));
     }
     if (!any) b += '<div class="none">空的</div>';
 

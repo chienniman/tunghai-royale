@@ -6,10 +6,13 @@ import { ITEMS, RARITY, tierOf } from './items.js';
 // geometry (one draw call per item). Guns point along -z, origin at the grip.
 const METAL = 0x2f3236, DARK = 0x191a1d, WOOD = 0x7a5232, TAN = 0x9a8760, OLIVE = 0x4d5638, GREEN = 0x3f4a36;
 
-// part: { s:[w,h,d] } box or { cyl:[radius,length] } cylinder along z; p = centre, c = colour, r = pitch (rad)
+// part: { s:[w,h,d] } box, { cyl:[radius,length,radius2?] } cylinder along z, or { sph:[rx,ry?,rz?] } ellipsoid;
+// p = centre, c = colour, r = pitch (rad)
 export function boxes(parts) {
-  const geos = parts.map(({ s, cyl, p = [0, 0, 0], c = METAL, r }) => {
-    let g = s ? new THREE.BoxGeometry(s[0], s[1], s[2]) : new THREE.CylinderGeometry(cyl[0], cyl[2] ?? cyl[0], cyl[1], 10).rotateX(Math.PI / 2);
+  const geos = parts.map(({ s, cyl, sph, p = [0, 0, 0], c = METAL, r }) => {
+    let g = s ? new THREE.BoxGeometry(s[0], s[1], s[2])
+      : sph ? new THREE.SphereGeometry(1, 10, 8).scale(sph[0], sph[1] ?? sph[0], sph[2] ?? sph[0])
+        : new THREE.CylinderGeometry(cyl[0], cyl[2] ?? cyl[0], cyl[1], 12).rotateX(Math.PI / 2);
     g = g.toNonIndexed();
     if (r) g.rotateX(r);
     g.translate(p[0], p[1], p[2]);
@@ -86,17 +89,30 @@ const ITEM_PARTS = {
   ammo_556: [{ s: [0.18, 0.1, 0.11], c: 0x4f8a3c }, { s: [0.185, 0.02, 0.115], p: [0, 0.04, 0], c: 0x2c4f22 }],
   ammo_762: [{ s: [0.2, 0.1, 0.12], c: 0xa5523a }, { s: [0.205, 0.02, 0.125], p: [0, 0.04, 0], c: 0x5a2c1f }],
   ammo_12g: [{ s: [0.17, 0.09, 0.12], c: 0xb5322b }, { s: [0.175, 0.02, 0.125], p: [0, 0.035, 0], c: 0xd8b24a }],
-  bandage: [{ cyl: [0.06, 0.1], c: 0xefeadc }, { cyl: [0.062, 0.03], c: 0xc9c1ad }, { cyl: [0.02, 0.102], c: 0x9a9384 }],
-  medkit: [
-    { s: [0.34, 0.16, 0.24], c: 0xeeeeea }, { s: [0.345, 0.03, 0.245], p: [0, 0.02, 0], c: 0xb9bbb8 },
-    { s: [0.12, 0.165, 0.04], c: 0xd32f2f }, { s: [0.04, 0.165, 0.12], c: 0xd32f2f },
-    { s: [0.1, 0.02, 0.03], p: [0, 0.09, 0], c: 0x3a3d42 },
+  // Food. Modelled lying along z (z- is "up" once stood upright, see UPRIGHT below).
+  chickenfeet: [ // 雞爪凍: a clear tub of amber jelly with a red lid
+    { cyl: [0.05, 0.085, 0.062], p: [0, 0, 0], c: 0xd8a45a },
+    { cyl: [0.066, 0.014], p: [0, 0, -0.048], c: 0xc0392b },
+    { cyl: [0.052, 0.03, 0.048], p: [0, 0, 0.01], c: 0xf2e6c8 },
+    { sph: [0.02, 0.012, 0.03], p: [0.02, 0.01, -0.02], c: 0xe9c79a }, { sph: [0.02, 0.012, 0.03], p: [-0.02, -0.012, -0.015], c: 0xe9c79a },
   ],
-  milk: [
-    { cyl: [0.045, 0.17], p: [0, 0, 0], c: 0xf6f6f1 },
-    { cyl: [0.047, 0.07], p: [0, 0, 0.005], c: 0x2f6fb7 },
-    { cyl: [0.028, 0.035, 0.043], p: [0, 0, -0.1], c: 0xf6f6f1 },
-    { cyl: [0.024, 0.025], p: [0, 0, -0.125], c: 0x2f6fb7 },
+  friedchicken: [ // paper bag with golden pieces sticking out
+    { s: [0.12, 0.08, 0.13], p: [0, 0, 0.02], c: 0xf1ede2 },
+    { s: [0.122, 0.082, 0.03], p: [0, 0, 0.03], c: 0xc8372d },
+    { sph: [0.045, 0.035, 0.04], p: [-0.025, 0, -0.06], c: 0xc8862b }, { sph: [0.04, 0.032, 0.045], p: [0.03, 0.005, -0.065], c: 0xb8741f },
+    { sph: [0.032, 0.03, 0.035], p: [0, -0.005, -0.095], c: 0xd39a3c },
+  ],
+  guabao: [ // 刈包: folded white bun, braised pork, pickled greens, peanut powder
+    { sph: [0.085, 0.04, 0.07], p: [0, 0.03, 0], c: 0xf6efe0 }, { sph: [0.085, 0.04, 0.07], p: [0, -0.03, 0], c: 0xf6efe0 },
+    { s: [0.13, 0.03, 0.09], p: [0.01, 0, -0.02], c: 0x7b4a28 },
+    { s: [0.11, 0.015, 0.05], p: [0.015, 0.012, -0.045], c: 0x5f8f3a },
+    { s: [0.1, 0.01, 0.04], p: [0.01, -0.012, -0.05], c: 0xd9b46a },
+  ],
+  icecream: [ // waffle cone with a swirl of Tunghai dairy soft serve
+    { cyl: [0.008, 0.13, 0.042], p: [0, 0, 0.02], c: 0xc99a55 },
+    { cyl: [0.046, 0.02], p: [0, 0, -0.05], c: 0xb78645 },
+    { sph: [0.05, 0.05, 0.04], p: [0, 0, -0.08], c: 0xfff7e6 }, { sph: [0.038, 0.038, 0.035], p: [0, 0, -0.125], c: 0xfff7e6 },
+    { sph: [0.022, 0.022, 0.03], p: [0, 0, -0.16], c: 0xfff7e6 },
   ],
   vest: [
     { s: [0.4, 0.46, 0.14], p: [0, 0.23, 0], c: OLIVE },
@@ -116,7 +132,7 @@ const ITEM_PARTS = {
 };
 // Gear colour by level, matching what the character wears (see player.js).
 const LEVEL_COLOR = { 1: 0x7a7d66, 2: 0x47566b, 3: 0x2b2d32 };
-const UPRIGHT = { milk: true, bandage: true }; // modelled lying along z; stand them up on the ground
+const UPRIGHT = { chickenfeet: true, friedchicken: true, icecream: true }; // modelled lying along z; stand them up on the ground
 
 const geoCache = new Map();
 let mat = null;

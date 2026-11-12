@@ -22,7 +22,7 @@ test('capacity limits ammo, a backpack raises it', () => {
   const room = Math.floor(BASE_CAPACITY / ITEMS.ammo_556.w);
   let r = inv.add({ id: 'ammo_556', n: 500 });
   assert.equal(r.taken, room);
-  assert.equal(inv.add({ id: 'medkit', n: 1 }).taken, 0, 'full');
+  assert.equal(inv.add({ id: 'guabao', n: 1 }).taken, 0, 'full');
   assert.equal(inv.add({ id: 'pack2', n: 1 }).taken, 1);
   assert.equal(inv.capacity, BASE_CAPACITY + ITEMS.pack2.cap);
   r = inv.add({ id: 'ammo_556', n: 500 });
@@ -64,9 +64,9 @@ test('dropping the held weapon falls back to the other slot, then fists', () => 
 
 test('dropAll returns everything and empties the inventory', () => {
   const inv = new Inventory();
-  for (const s of [{ id: 'ar', n: 1, ammo: 30 }, { id: 'ammo_556', n: 40 }, { id: 'bandage', n: 2 }, { id: 'helmet2', n: 1 }, { id: 'pack1', n: 1 }]) inv.add(s);
+  for (const s of [{ id: 'ar', n: 1, ammo: 30 }, { id: 'ammo_556', n: 40 }, { id: 'chickenfeet', n: 2 }, { id: 'helmet2', n: 1 }, { id: 'pack1', n: 1 }]) inv.add(s);
   const out = inv.dropAll();
-  assert.deepEqual(out.map((s) => s.id).sort(), ['ammo_556', 'ar', 'bandage', 'helmet2', 'pack1']);
+  assert.deepEqual(out.map((s) => s.id).sort(), ['ammo_556', 'ar', 'chickenfeet', 'helmet2', 'pack1']);
   assert.equal(inv.weight, 0);
   assert.equal(inv.weapon.id, 'fists');
 });

@@ -123,8 +123,8 @@ export class FX {
 
   // Burst of debris at p, thrown along normal n. kind: 'dirt' | 'stone' | 'spark' | 'hit'
   impact(p, n, kind = 'stone', count = 7) {
-    const C = { dirt: [0.36, 0.28, 0.18], stone: [0.78, 0.76, 0.72], spark: [1, 0.82, 0.4], hit: [1, 0.3, 0.22] }[kind];
-    const speed = kind === 'spark' ? 5.5 : 2.8;
+    const C = { dirt: [0.36, 0.28, 0.18], stone: [0.78, 0.76, 0.72], spark: [1, 0.82, 0.4], hit: [1, 0.3, 0.22], ghost: [0.78, 0.9, 1] }[kind];
+    const speed = kind === 'spark' ? 5.5 : kind === 'ghost' ? 3.6 : 2.8;
     for (let k = 0; k < count; k++) {
       const v = 0.8 + Math.random() * 0.2, s = speed * (0.3 + Math.random() * 0.7);
       this._emit(this.deb, p.x, p.y, p.z,
@@ -135,11 +135,11 @@ export class FX {
 
   // Soft cloud drifting off a surface. kind: 'dirt' | 'stone' | 'smoke'
   puff(p, n, kind = 'stone') {
-    const C = { dirt: [0.5, 0.42, 0.3], stone: [0.82, 0.8, 0.77], smoke: [0.16, 0.16, 0.17] }[kind];
-    const up = kind === 'smoke' ? 1.6 : 0.5;
+    const C = { dirt: [0.5, 0.42, 0.3], stone: [0.82, 0.8, 0.77], smoke: [0.16, 0.16, 0.17], mist: [0.82, 0.9, 1] }[kind];
+    const up = kind === 'smoke' ? 1.6 : kind === 'mist' ? 1.0 : 0.5;
     this._emit(this.puf, p.x + n.x * 0.1, p.y + n.y * 0.1, p.z + n.z * 0.1,
       n.x * 0.9 + (Math.random() - 0.5) * 0.6, n.y * 0.9 + up * (0.6 + Math.random() * 0.6), n.z * 0.9 + (Math.random() - 0.5) * 0.6,
-      C[0], C[1], C[2], kind === 'smoke' ? 0.55 : 0.32, kind === 'smoke' ? 1.6 + Math.random() : 0.55 + Math.random() * 0.3);
+      C[0], C[1], C[2], kind === 'smoke' ? 0.55 : kind === 'mist' ? 0.45 : 0.32, kind === 'smoke' ? 1.6 + Math.random() : kind === 'mist' ? 1.1 + Math.random() * 0.5 : 0.55 + Math.random() * 0.3);
   }
 
   number(pos, text, cls = '') {

@@ -63,5 +63,5 @@ export async function buildWorld(scene, terrain, map, progress = () => {}) {
     return null;
   };
 
-  return { raycast, grass, colliders, groundCanvas: ground.canvas, named: bld.named, chapel, map, treeCount: trees.count, inCampus };
+  return { raycast, grass, setNight: bld.setNight, colliders, groundCanvas: ground.canvas, named: bld.named, chapel, map, treeCount: trees.count, inCampus };
 }

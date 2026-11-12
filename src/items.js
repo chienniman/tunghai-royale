@@ -43,10 +43,11 @@ export const ITEMS = {
   ammo_762: { kind: 'ammo', name: '7.62mm 子彈', ammoType: '762', w: 0.8 },
   ammo_12g: { kind: 'ammo', name: '12 號霰彈', ammoType: '12g', w: 1.2 },
 
-  // --- consumables ---------------------------------------------------------
-  bandage: { kind: 'heal', name: '繃帶', heal: 15, cap: 75, time: 3, w: 2, key: 'Digit4' },
-  medkit: { kind: 'heal', name: '急救包', heal: 100, cap: 100, time: 6, w: 10, key: 'Digit5' },
-  milk: { kind: 'boost', name: '東海鮮乳', boost: 45, time: 3, w: 4, key: 'Digit6' },
+  // --- food: Tunghai specialities (heal up to `cap`; ice cream gives boost = slow regen + a little speed) ---
+  chickenfeet: { kind: 'heal', name: '雞爪凍', heal: 15, cap: 75, time: 2.5, w: 2, key: 'Digit4' },
+  friedchicken: { kind: 'heal', name: '東海炸雞', heal: 40, cap: 100, time: 4, w: 5, key: 'Digit5' },
+  guabao: { kind: 'heal', name: '刈包', heal: 100, cap: 100, time: 6, w: 9, key: 'Digit6' },
+  icecream: { kind: 'boost', name: '東海冰淇淋', boost: 45, time: 3, w: 4, key: 'Digit7' },
 
   // --- gear ----------------------------------------------------------------
   vest1: { kind: 'vest', name: '防彈背心 Lv.1', lv: 1, reduce: 0.30, dur: 200 },
@@ -63,14 +64,14 @@ for (const [id, d] of Object.entries(ITEMS)) d.id = id;
 
 export const BASE_CAPACITY = 80;
 export const FISTS = { id: 'fists', kind: 'melee', name: '空手', dmg: 20, rate: 0.45, range: 2.0, zoom: 62 };
-export const CONSUMABLES = ['bandage', 'medkit', 'milk'];
+export const CONSUMABLES = ['chickenfeet', 'friedchicken', 'guabao', 'icecream'];
 export const AMMO_ITEM = { '9mm': 'ammo_9mm', '556': 'ammo_556', '762': 'ammo_762', '12g': 'ammo_12g' };
 
 export const def = (id) => ITEMS[id];
 
 // Rarity tier 0..4 (grey / green / blue / purple / gold) — drives ring, beam and UI colours.
 export const RARITY = ['#c9ccd1', '#6fcf7c', '#5aa9ff', '#b57bff', '#ffb84a'];
-const HEAL_TIER = { bandage: 0, milk: 1, medkit: 2 };
+const HEAL_TIER = { chickenfeet: 0, friedchicken: 1, icecream: 1, guabao: 2 };
 export function tierOf(id) {
   const d = ITEMS[id];
   if (!d) return 0;
@@ -128,9 +129,10 @@ export function rollCluster(rng) {
   }
   if (r < 0.77) {
     const k = rng();
-    if (k < 0.5) return [{ id: 'bandage', n: 1 + Math.floor(rng() * 4) }];
-    if (k < 0.75) return [{ id: 'milk', n: 1 + Math.floor(rng() * 2) }];
-    return [{ id: 'medkit', n: 1 }];
+    if (k < 0.4) return [{ id: 'chickenfeet', n: 1 + Math.floor(rng() * 4) }];
+    if (k < 0.62) return [{ id: 'friedchicken', n: 1 + Math.floor(rng() * 2) }];
+    if (k < 0.82) return [{ id: 'icecream', n: 1 + Math.floor(rng() * 2) }];
+    return [{ id: 'guabao', n: 1 }];
   }
   const kind = pickW(rng(), [['vest', 38], ['helmet', 38], ['pack', 24]]);
   const id = kind + pickW(rng(), LEVEL_W);

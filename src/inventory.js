@@ -1,4 +1,4 @@
-import { ITEMS, BASE_CAPACITY, FISTS, AMMO_ITEM } from './items.js';
+import { ITEMS, BASE_CAPACITY, FISTS, AMMO_ITEM, CONSUMABLES } from './items.js';
 
 // Player inventory: two weapon slots, ammo + consumables limited by backpack
 // capacity, and three gear slots (vest / helmet / pack). Pure logic, no three.js.
@@ -9,7 +9,7 @@ export class Inventory {
     this.slots = [null, null];   // { id, ammo }
     this.active = -1;            // -1 = fists
     this.ammo = { '9mm': 0, '556': 0, '762': 0, '12g': 0 };
-    this.items = { bandage: 0, medkit: 0, milk: 0 };
+    this.items = Object.fromEntries(CONSUMABLES.map((id) => [id, 0]));
     this.vest = null;            // { id, dur }
     this.helmet = null;
     this.pack = null;            // { id }

@@ -11,8 +11,9 @@ const PICKUP_RANGE = 2.2;
 // pre() runs before the player moves (it sets movement modifiers);
 // post() runs after the camera is placed (it needs the final aim ray).
 export class Combat {
-  constructor({ player, inv, world, targets, loot, fx, ui }) {
-    this.player = player; this.inv = inv; this.world = world; this.targets = targets; this.loot = loot; this.fx = fx; this.ui = ui;
+  // enemies: systems with raycast(ox,oy,oz,dx,dy,dz,maxT) -> { t, target, zone } and damage(target, amount, dist)
+  constructor({ player, inv, world, enemies, loot, fx, ui, audio }) {
+    this.player = player; this.inv = inv; this.world = world; this.enemies = enemies; this.loot = loot; this.fx = fx; this.ui = ui; this.audio = audio;
     this.cd = 0;            // seconds until the next shot is allowed
     this.reload = null;     // { t, total }
     this.use = null;        // { id, t, total }
@@ -80,6 +81,7 @@ export class Combat {
     p.sens = THREE.MathUtils.lerp(1, (this.weapon.zoom ?? BASE_FOV) / BASE_FOV, this.ads);
     // drives the character's weapon pose
     p.ads = this.ads; p.reloadK = this.reload ? 1 - this.reload.t / this.reload.total : 0;
+    p.eating = !!this.use;
   }
 
   // --- after the camera is placed --------------------------------------------
@@ -115,7 +117,7 @@ export class Combat {
         const slot = inv.weaponSlot;
         if (this.reload) { /* busy */ }
         else if (slot.ammo <= 0) {
-          if (!this.startReload()) { this.ui.toast('沒有子彈了'); this.cd = 0.35; }
+          if (!this.startReload()) { this.ui.toast('沒有子彈了'); this.audio?.dry(); this.cd = 0.35; }
         } else this._fire(w, slot, cam);
       }
     }
@@ -126,6 +128,7 @@ export class Combat {
     this.use = null;
     const total = this.weapon.reload;
     this.reload = { t: total, total };
+    this.audio?.reload();
     return true;
   }
 
@@ -145,6 +148,7 @@ export class Combat {
     this.use = null;
     if (this.inv.items[d.id] <= 0) return;
     this.inv.items[d.id]--;
+    this.audio?.eat();
     if (d.kind === 'heal') p.heal(d.heal, d.cap);
     else p.boost = Math.min(100, p.boost + d.boost);
   }
@@ -155,6 +159,7 @@ export class Combat {
     const res = this.inv.add(it);
     if (res.msg) this.ui.toast(res.msg);
     if (res.taken <= 0) return false;
+    this.audio?.pickup();
     if (res.taken >= it.n) this.loot.remove(it); else it.n -= res.taken;
     if (res.dropped.length) this.loot.scatter(res.dropped, it.x, it.z, 0.5);
     if (ITEMS[it.id].kind === 'weapon') this._switch(true);
@@ -184,8 +189,12 @@ export class Combat {
   // Nearest thing along a ray: world geometry or a target.
   trace(o, d, maxT) {
     const wh = this.world.raycast(o.x, o.y, o.z, d.x, d.y, d.z, maxT);
-    const th = this.targets.raycast(o.x, o.y, o.z, d.x, d.y, d.z, wh ? wh.t : maxT);
-    return th || wh;
+    let best = wh, maxE = wh ? wh.t : maxT;
+    for (const e of this.enemies) {
+      const h = e.raycast(o.x, o.y, o.z, d.x, d.y, d.z, maxE);
+      if (h) { best = h; maxE = h.t; }
+    }
+    return best;
   }
 
   _fire(w, slot, cam) {
@@ -197,7 +206,7 @@ export class Combat {
     const look = cam.look;
     const origin = this._o.copy(cam.pos).addScaledVector(look, cam.dist);
     const muzzle = p.muzzleWorld(this._m, muzzleLength(w.id));
-    fx.muzzle(muzzle, look);
+    fx.muzzle(muzzle, look); this.audio?.shot(w.id);
     p.recoil = 1;
     // camera basis for the spread cone
     const right = this._r.set(-look.z, 0, look.x).normalize();
@@ -220,7 +229,7 @@ export class Combat {
         const e = totals.get(hit.target) || { dmg: 0, head: false, point: end.clone(), dist: hit.t };
         e.dmg += dmg; e.head = e.head || hit.zone === 'head';
         totals.set(hit.target, e);
-        fx.impact(end, this._n.copy(md).negate(), hit.target.kind === 'sentry' ? 'spark' : 'hit', 4);
+        fx.impact(end, this._n.copy(md).negate(), hit.target.kind === 'sentry' ? 'spark' : hit.target.sys.stats.ghosts !== undefined ? 'ghost' : 'hit', 4);
       } else {
         fx.impact(end, this._n.set(hit.nx, hit.ny, hit.nz), hit.kind === 'ground' ? 'dirt' : 'stone', w.pellets ? 3 : 7);
         if (!w.pellets || i % 3 === 0) fx.puff(end, this._n, hit.kind === 'ground' ? 'dirt' : 'stone');
@@ -237,7 +246,8 @@ export class Combat {
   }
 
   _applyHit(tg, e) {
-    const killed = this.targets.damage(tg, e.dmg, e.dist);
+    const killed = tg.sys.damage(tg, e.dmg, e.dist);
+    this.audio?.hit();
     e.point.y += 0.25;
     this.fx.number(e.point, String(Math.round(e.dmg)), e.head ? 'crit' : '');
     this.ui.hitmarker(killed ? 'kill' : e.head ? 'head' : 'hit');
@@ -246,7 +256,7 @@ export class Combat {
 
   _punch(cam) {
     const p = this.player;
-    this.cd = FISTS.rate; p.punchT = 0.3; this.use = null; this.sinceShot = 0;
+    this.cd = FISTS.rate; p.punchT = 0.3; this.use = null; this.sinceShot = 0; this.audio?.punch();
     const origin = this._o.set(p.pos.x, p.headY - 0.25, p.pos.z);
     const hit = this.trace(origin, cam.look, FISTS.range);
     if (!hit) return;

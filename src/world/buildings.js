@@ -172,13 +172,23 @@ export function buildBuildings(map, terrain, colliders) {
 
   const wallTex = makeWallTexture();
   const wallMat = new THREE.MeshStandardMaterial({ map: wallTex, vertexColors: true, roughness: 0.82 });
+  // uNight (0..1) switches on warm light behind a random third of the windows.
+  const night = { value: 0 };
   wallMat.onBeforeCompile = (shader) => {
-    shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>', `
+    shader.uniforms.uNight = night;
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform float uNight;\nfloat wGlass = 0.0;')
+      .replace('#include <color_fragment>', `
       #ifdef USE_COLOR
-        float glass = step(texture2D(map, vMapUv).a, 0.75);
-        diffuseColor.rgb *= mix(vColor, vec3(0.75), glass);
+        wGlass = step(texture2D(map, vMapUv).a, 0.75);
+        diffuseColor.rgb *= mix(vColor, vec3(0.75), wGlass);
         diffuseColor.a = 1.0;
-      #endif`);
+      #endif`)
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+        vec2 wCell = floor(vMapUv);
+        float wRnd = fract(sin(dot(wCell, vec2(12.9898, 78.233))) * 43758.5453);
+        float wLit = step(0.66, wRnd) * wGlass * uNight;
+        totalEmissiveRadiance += wLit * mix(vec3(1.0, 0.62, 0.26), vec3(0.6, 0.78, 1.0), step(0.93, wRnd)) * (0.5 + 0.4 * fract(wRnd * 7.0));`);
   };
   const flatMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92, side: THREE.DoubleSide });
   const tileMat = new THREE.MeshStandardMaterial({ map: makeTileTexture(), vertexColors: true, roughness: 0.7, side: THREE.DoubleSide });
@@ -189,5 +199,5 @@ export function buildBuildings(map, terrain, colliders) {
     mesh.castShadow = true; mesh.receiveShadow = true;
     group.add(mesh);
   }
-  return { group, named, chapel };
+  return { group, named, chapel, setNight: (v) => { night.value = v; } };
 }
