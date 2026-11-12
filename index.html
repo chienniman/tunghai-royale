@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>東海大逃殺 Tunghai Royale</title>
+  <link rel="stylesheet" href="src/style.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="game"></div>
+
+  <div id="hud" class="hidden">
+    <div id="compass"><div id="compass-strip"></div><div id="compass-marker"></div><div id="compass-deg">0</div></div>
+    <div id="location"></div>
+    <div id="stats"></div>
+    <canvas id="minimap" width="220" height="220"></canvas>
+    <div id="crosshair"></div>
+    <div id="hint">WASD 移動 · Shift 衝刺 · 空白鍵 跳 · C 蹲 · M 地圖 · Esc 暫停</div>
+  </div>
+
+  <div id="bigmap" class="hidden"><canvas id="bigmap-canvas"></canvas><div class="bigmap-title">東海大學 · 按 M 關閉</div></div>
+
+  <div id="overlay">
+    <div class="panel">
+      <h1>東海大逃殺</h1>
+      <div class="sub">TUNGHAI ROYALE · v0.1 地圖預覽</div>
+      <div id="loading-text">載入中…</div>
+      <button id="start-btn" class="hidden">點擊開始</button>
+      <div class="controls">
+        <div><b>WASD</b> 移動</div><div><b>滑鼠</b> 轉視角</div>
+        <div><b>Shift</b> 衝刺</div><div><b>空白鍵</b> 跳</div>
+        <div><b>C</b> 蹲下</div><div><b>M</b> 大地圖</div>
+      </div>
+      <div class="credit">地圖資料 © OpenStreetMap 貢獻者（ODbL）· 地形高程 SRTM 30m（NASA / USGS）</div>
+    </div>
+  </div>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
