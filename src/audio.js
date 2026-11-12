@@ -99,6 +99,31 @@ export class Sfx {
   wisp() { this._run((c, t) => { const { o } = this._tone(t, 0.9, 980, 520, 0.09, 'sine'); o.frequency.setValueAtTime(980, t); }); }
   ghostDie() { this._run((c, t) => { this._tone(t, 0.6, 700, 90, 0.2, 'sine'); this._noise(t, 0.5, 2400, 0.15, 'highpass'); }); }
 
+  bell(n = 1) {
+    this._run((c, t) => {
+      for (let i = 0; i < n; i++) for (const [f, g] of [[196, 0.5], [392, 0.22], [587, 0.12], [786, 0.07]]) this._tone(t + i * 1.7, 3.2, f, f * 0.995, g, 'sine');
+    });
+  }
+  thunder() { this._run((c, t) => { this._noise(t, 2.6, 160, 1.0); this._noise(t + 0.05, 0.5, 900, 0.5); this._tone(t, 1.6, 60, 28, 0.6, 'sine'); }); }
+  thud(v = 1) { this._run((c, t) => { this._tone(t, 0.14, 95, 40, 0.5 * v, 'sine'); this._noise(t, 0.06, 300, 0.25 * v); }); }
+  groan() { this._run((c, t) => { const { o } = this._tone(t, 1.1, 82, 58, 0.3, 'sawtooth'); o.frequency.setValueAtTime(82, t); this._noise(t, 1.0, 420, 0.12, 'bandpass', 3); }); }
+  creak(v = 1) { this._run((c, t) => { for (let i = 0; i < 3; i++) this._tone(t + i * 0.16, 0.14, 240 + i * 55, 200 + i * 40, 0.07 * v, 'sawtooth'); }); }
+  giggle() { this._run((c, t) => { for (let i = 0; i < 5; i++) this._tone(t + i * 0.11, 0.09, 1150 + (i % 2) * 260, 980 + (i % 2) * 200, 0.1, 'triangle'); }); }
+  powerDown() { this._run((c, t) => { this._tone(t, 1.3, 220, 28, 0.4, 'sawtooth'); }); }
+  plane() { this._run((c, t) => { const { g } = this._noise(t, 4.5, 190, 0.3); g.gain.setValueAtTime(0.02, t); g.gain.linearRampToValueAtTime(0.3, t + 2); g.gain.linearRampToValueAtTime(0.001, t + 4.5); }); }
+  setRain(v) {
+    if (!this.ctx) return;
+    try {
+      if (!this.rainG) {
+        if (v < 0.01) return;
+        const c = this.ctx, g = c.createGain(); g.gain.value = 0; g.connect(this.out);
+        const n = c.createBufferSource(); n.buffer = this.noiseBuf; n.loop = true; const f = c.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 2400;
+        n.connect(f).connect(g); n.start(); this.rainG = g;
+      }
+      this.rainG.gain.setTargetAtTime(v * 0.22, this.ctx.currentTime, 0.5);
+    } catch { /* ignore */ }
+  }
+
   // Night ambience: a low drone and wind that swell as it gets dark (v = 0..1).
   setNight(v) {
     if (!this.ctx) return;

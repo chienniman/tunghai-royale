@@ -12,6 +12,8 @@ import { Targets } from './targets.js';
 import { Combat, BASE_FOV } from './combat.js';
 import { CombatHUD } from './hud-combat.js';
 import { Ghosts } from './ghosts.js';
+import { Monsters } from './monsters.js';
+import { Events } from './events.js';
 import { Sfx } from './audio.js';
 import { TouchControls } from './touch.js';
 
@@ -72,8 +74,9 @@ async function main() {
   const fx = new FX(scene, camera);
   const targets = new Targets(scene, terrain, world, loot, fx); targets.audio = sfx;
   const ghosts = new Ghosts(scene, terrain, world, loot, fx, sfx);
+  const monsters = new Monsters(scene, terrain, world, loot, fx, sfx);
   const ui = new CombatHUD(inv, player); ui.loot = loot;
-  const combat = new Combat({ player, inv, world, enemies: [targets, ghosts], loot, fx, ui, audio: sfx });
+  const combat = new Combat({ player, inv, world, enemies: [targets, ghosts, monsters], loot, fx, ui, audio: sfx });
 
   // Spawn in front of Luce Chapel, looking at it.
   const spawn = { x: 0, z: 0, yaw: 0, dx: 0, dz: -1 };
@@ -92,20 +95,24 @@ async function main() {
   loot.scatter([{ id: 'ar', n: 1, ammo: 30 }, { id: 'ammo_556', n: 60 }, { id: 'vest1', n: 1, dur: 200 }, { id: 'icecream', n: 1 }],
     spawn.x + spawn.dx * 7 + spawn.dz * 2.5, spawn.z + spawn.dz * 7 - spawn.dx * 2.5, 0.9);
 
-  const hud = new HUD(world, terrain);
-  hud.markers = () => targets.alerted();
+  const hud = new HUD(world, terrain); ui.hud = hud;
+  const events = new Events({ scene, terrain, world, loot, fx, audio: sfx, ui, sky, ghosts, monsters, player });
+  hud.markers = () => [...targets.alerted(), ...events.markers];
 
   targets.onKill = (tg, dist) => ui.kill(`${tg.kind === 'sentry' ? '擊毀' : '擊倒'} ${tg.name} · ${dist.toFixed(0)} m`);
   ghosts.onKill = (g, dist) => { ui.kill(`驅散 ${g.name} · ${dist.toFixed(0)} m`); sfx.ghostDie(); };
+  monsters.onKill = (m, dist) => { ui.kill(`消滅 ${m.name} · ${dist.toFixed(0)} m`); sfx.ghostDie(); };
+  monsters.onTaken = () => events.takeAway();
+  combat.onShot = (w) => monsters.hear(player.pos.x, player.pos.z, w.id === 'sniper' || w.id === 'shotgun' ? 110 : 75);
   let shake = 0;
   ghosts.onScare = () => { ui.scare(); sfx.scare(); shake = 1.6; };
   sky.onDusk = () => ui.toast('天黑了……有東西在校園裡遊蕩');
   sky.onDawn = () => { ui.toast('天亮了，阿飄都散了'); ghosts.banish(); };
   player.onDamage = (amount, info) => { ui.damaged(amount, info); sfx.hurt(); shake = Math.max(shake, Math.min(0.6, amount / 40)); };
   player.onDeath = (info) => {
-    combat.onPlayerDeath(); ghosts.banish();
+    combat.onPlayerDeath(); ghosts.banish(); monsters.banish();
     const acc = combat.stats.shots ? Math.round(100 * combat.stats.hits / combat.stats.shots) : 0;
-    ui.showDeath(`死因：${info.source || '不明'}<br>驅散鬼怪 ${ghosts.stats.ghosts} · 擊毀哨戒機槍 ${targets.stats.sentries} · 擊倒標靶 ${targets.stats.dummies} · 命中率 ${acc}%<br>身上的物資掉在原地了`);
+    ui.showDeath(`死因：${info.source || '不明'}<br>驅散鬼怪 ${ghosts.stats.ghosts + monsters.stats.kills} · 擊毀哨戒機槍 ${targets.stats.sentries} · 擊倒標靶 ${targets.stats.dummies} · 命中率 ${acc}%<br>身上的物資掉在原地了`);
   };
   const respawn = () => {
     player.spawn(spawn.x, spawn.z, spawn.yaw);
@@ -151,7 +158,7 @@ async function main() {
     }
     // torch: from the head, along the view, only once it is dark
     // ...and it stutters and dies back whenever she is close
-    torch.intensity = 42 * sky.night * (player.dead ? 0.2 : 1) * (1 - 0.93 * ghosts.flicker);
+    torch.intensity = events.torchOut ? 0 : 42 * sky.night * (player.dead ? 0.2 : 1) * (1 - 0.93 * ghosts.flicker);
     torch.position.set(player.pos.x, player.headY + 0.1, player.pos.z).addScaledVector(look, 0.3);
     torch.target.position.copy(torch.position).addScaledVector(look, 10);
   }
@@ -233,10 +240,12 @@ async function main() {
       sky.update(dt, camera);
       targets.update(dt, player);
       ghosts.update(dt, player, cam, sky);
+      monsters.update(dt, player, cam, sky);
+      events.update(dt, cam);
       loot.update(dt, player.pos.x, player.pos.z);
       fx.update(dt);
       loot.animate(time += dt);
-      hud.extra = `驅鬼 ${ghosts.stats.ghosts} · 哨戒 ${targets.stats.sentries} · 標靶 ${targets.stats.dummies}`;
+      hud.extra = `驅鬼 ${ghosts.stats.ghosts + monsters.stats.kills} · 哨戒 ${targets.stats.sentries} · 標靶 ${targets.stats.dummies}`;
     } else {
       input.consumeMouse();
       player.animate(0);
@@ -244,10 +253,11 @@ async function main() {
       loot.update(dt, player.pos.x, player.pos.z);
       sky.update(0, camera);
     }
-    world.setNight(sky.night); sfx.setNight(running ? sky.night : 0);
+    world.setNight(events.blackout > 0 ? 0 : sky.night); sfx.setNight(running ? sky.night : 0);
     // dread: grain and darkness creep in from the edges, the heart speeds up
-    ui.setDread(ghosts.scaring ? 0.3 : ghosts.dread);
-    if (running && ghosts.dread > 0.22 && (beatT -= dt) <= 0) { beatT = THREE.MathUtils.lerp(1.15, 0.42, ghosts.dread); sfx.heartbeat(0.4 + 0.6 * ghosts.dread); }
+    const dread = Math.max(ghosts.dread, monsters.dread);
+    ui.setDread(ghosts.scaring ? 0.3 : dread);
+    if (running && dread > 0.22 && (beatT -= dt) <= 0) { beatT = THREE.MathUtils.lerp(1.15, 0.42, dread); sfx.heartbeat(0.4 + 0.6 * dread); }
     ui.setClock(sky.clock, sky.night > 0.5);
     updateSun();
     hud.update(dt, player, raw);
@@ -260,7 +270,7 @@ async function main() {
   const clock = new THREE.Clock();
   // Debug handle. step() advances the simulation without waiting for the browser's frame clock.
   window.game = {
-    scene, camera, renderer, player, world, terrain, input, hud, inv, loot, targets, ghosts, sky, combat, ui, fx, sfx, spawn, lootClusters,
+    scene, camera, renderer, player, world, terrain, input, hud, inv, loot, targets, ghosts, monsters, events, sky, combat, ui, fx, sfx, spawn, lootClusters,
     step(dt = 1 / 60, n = 1, render = false) { for (let i = 0; i < n; i++) frame(dt, dt, render && i === n - 1); },
   };
   renderer.setAnimationLoop(() => {

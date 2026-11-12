@@ -206,7 +206,7 @@ export class Combat {
     const look = cam.look;
     const origin = this._o.copy(cam.pos).addScaledVector(look, cam.dist);
     const muzzle = p.muzzleWorld(this._m, muzzleLength(w.id));
-    fx.muzzle(muzzle, look); this.audio?.shot(w.id);
+    fx.muzzle(muzzle, look); this.audio?.shot(w.id); this.onShot?.(w);
     p.recoil = 1;
     // camera basis for the spread cone
     const right = this._r.set(-look.z, 0, look.x).normalize();

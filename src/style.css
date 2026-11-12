@@ -41,6 +41,13 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0d1014; col
 #dread { position: absolute; inset: 0; opacity: 0; background-repeat: repeat, no-repeat; background-size: 128px 128px, 100% 100%; }
 #scare { position: absolute; inset: 0; opacity: 0; background: radial-gradient(ellipse at center, rgba(90, 0, 0, .08) 30%, rgba(0, 0, 0, .96) 80%); }
 #scare.flash { background: #e9efe6; }
+#fade { position: absolute; inset: 0; opacity: 0; background: #000; }
+#event { position: absolute; top: 116px; left: 50%; transform: translateX(-50%); min-width: 300px; padding: 9px 26px 10px; text-align: center; opacity: 0;
+  background: linear-gradient(90deg, transparent, var(--ink-strong) 18%, var(--ink-strong) 82%, transparent); border-top: 1px solid var(--tone, var(--gold)); border-bottom: 1px solid var(--tone, var(--gold)); }
+#event b { display: block; font-size: 24px; font-weight: 900; letter-spacing: 8px; color: var(--tone, var(--gold)); }
+#event span { display: block; margin-top: 3px; font-size: 13px; letter-spacing: 1px; opacity: .85; }
+#event.red { --tone: #ff5a45; } #event.blue { --tone: #7fc0ff; } #event.gold { --tone: var(--gold); }
+body.touch #event { top: 70px; min-width: 220px; padding: 5px 18px 6px; } body.touch #event b { font-size: 17px; letter-spacing: 5px; } body.touch #event span { font-size: 11px; }
 #dmg-layer { position: absolute; inset: 0; overflow: hidden; }
 .dmg-num { position: absolute; left: 0; top: 0; font: 700 20px var(--num); color: #fff; will-change: transform; }
 .dmg-num.crit { color: #ffd23c; font-size: 26px; }

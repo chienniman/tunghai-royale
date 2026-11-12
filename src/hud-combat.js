@@ -20,9 +20,9 @@ export class CombatHUD {
       hit: $('hitmarker'), toast: $('toast'), feed: $('killfeed'), vignette: $('vignette'), dmgDir: $('dmg-dir'),
       target: $('target'), targetFill: $('target-fill'), targetName: $('target-name'), scope: $('scope'),
       inv: $('inventory'), invBody: $('inv-body'), death: $('death'), deathText: $('death-text'),
-      clock: $('clock'), scare: $('scare'), dread: $('dread'),
+      clock: $('clock'), scare: $('scare'), dread: $('dread'), event: $('event'), fade: $('fade'),
     };
-    this.scareT = 0;
+    this.scareT = 0; this.bannerT = 0; this.fadeT = 0; this.fadeMax = 1;
     this.toastT = 0; this.hitT = 0; this.targetT = 0; this.vigT = 0; this.dirT = 0; this.dirFrom = null;
     this.feed = [];
     this._sig = {};
@@ -69,6 +69,16 @@ export class CombatHUD {
     this.vigT = Math.min(1, 0.35 + amount / 40);
     if (info && info.x !== undefined) { this.dirFrom = { x: info.x, z: info.z }; this.dirT = 1.2; }
   }
+
+  // Announce an event across the top of the screen. tone: 'gold' | 'red' | 'blue'
+  banner(title, sub = '', tone = 'gold') {
+    const el = this.el.event;
+    el.firstElementChild.textContent = title; el.lastElementChild.textContent = sub;
+    el.className = tone; this.bannerT = 5.5;
+  }
+
+  // Screen goes black and comes back slowly (being led away).
+  blackoutFade(seconds) { this.fadeT = this.fadeMax = seconds; }
 
   // A ghost in your face: one white frame, then the dark closes in and stays a while.
   scare() { this.scareT = 1.5; }
@@ -159,6 +169,10 @@ export class CombatHUD {
     el.target.style.opacity = Math.min(1, this.targetT / 0.3).toFixed(2);
     if (this.hitT > 0 && (this.hitT -= dt) <= 0) el.hit.className = '';
     this.scareT = Math.max(0, this.scareT - dt);
+    this.bannerT = Math.max(0, this.bannerT - dt);
+    el.event.style.opacity = Math.min(1, this.bannerT / 0.6, (5.5 - this.bannerT) / 0.25).toFixed(2);
+    this.fadeT = Math.max(0, this.fadeT - dt);
+    el.fade.style.opacity = Math.min(1, this.fadeT / (this.fadeMax * 0.6)).toFixed(2);
     el.scare.style.opacity = Math.min(1, this.scareT / 0.6).toFixed(2);
     el.scare.classList.toggle('flash', this.scareT > 1.44);
     this.vigT = Math.max(0, this.vigT - dt * 1.4);

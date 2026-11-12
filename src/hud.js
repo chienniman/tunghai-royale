@@ -23,7 +23,8 @@ export class HUD {
     this.places = this._places();
     this.lastLoc = '';
     this.extra = '';        // extra line under the stats
-    this.markers = null;    // () => [{ x, z }] drawn as red dots on the maps
+    this.markers = null;    // () => [{ x, z, color? }] drawn as dots on the maps (red by default)
+    this.jam = 0;           // 1 = 鬼打牆: compass spins, minimap is useless
   }
 
   _buildCompass() {
@@ -64,7 +65,8 @@ export class HUD {
   update(dt, player, fpsDt) {
     this.frames++; this.fpsT += fpsDt;
     if (this.fpsT >= 0.5) { this.fps = Math.round(this.frames / this.fpsT); this.frames = 0; this.fpsT = 0; }
-    const heading = ((-player.yaw * 180 / Math.PI) % 360 + 360) % 360;
+    let heading = ((-player.yaw * 180 / Math.PI) % 360 + 360) % 360;
+    if (this.jam) heading = (heading + performance.now() * 0.31 + Math.sin(performance.now() / 370) * 140 + 3600) % 360;
     this.strip.style.transform = `translateX(${this.compassW / 2 - heading * this.pxPerDeg}px)`;
     this.deg.textContent = Math.round(heading) + '°';
 
@@ -89,12 +91,18 @@ export class HUD {
     ctx.fillStyle = '#222'; ctx.fillRect(0, 0, W, W);
     ctx.drawImage(src, cx - view * s / 2, cz - view * s / 2, view * s, view * s, 0, 0, W, W);
     if (this.markers) {
-      ctx.fillStyle = '#ff3b2a'; ctx.strokeStyle = '#000'; ctx.lineWidth = 1;
+      ctx.strokeStyle = '#000'; ctx.lineWidth = 1;
       for (const m of this.markers()) {
+        ctx.fillStyle = m.color || '#ff3b2a';
         const x = W / 2 + (m.x - player.pos.x) / view * W, y = W / 2 + (m.z - player.pos.z) / view * W;
         if (x < 0 || y < 0 || x > W || y > W) continue;
         ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
       }
+    }
+    if (this.jam) { // static
+      ctx.fillStyle = 'rgba(8,10,14,.82)'; ctx.fillRect(0, 0, W, W);
+      for (let i = 0; i < 90; i++) { const v = (Math.random() * 150) | 0; ctx.fillStyle = `rgba(${v},${v},${v},.5)`; ctx.fillRect(Math.random() * W, Math.random() * W, 2 + Math.random() * 26, 1.5); }
+      return;
     }
     this._arrow(ctx, W / 2, W / 2, player.yaw, 7);
   }
@@ -131,6 +139,11 @@ export class HUD {
       const [x, y] = this._toPx(p.x, p.z, s);
       ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillText(p.name, x + 1, y + 1);
       ctx.fillStyle = '#fff'; ctx.fillText(p.name, x, y);
+    }
+    if (this.markers) for (const m of this.markers()) {
+      const [x, y] = this._toPx(m.x, m.z, s);
+      ctx.fillStyle = m.color || '#ff3b2a'; ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     }
     const [px, py] = this._toPx(player.pos.x, player.pos.z, s);
     this._arrow(ctx, px, py, player.yaw, 9);

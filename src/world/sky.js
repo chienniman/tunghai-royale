@@ -56,6 +56,8 @@ const PAL = {
   hemiSkyDay: C(0xc3dbff), hemiSkyNight: C(0x33456e), hemiGndDay: C(0x56603a), hemiGndNight: C(0x0c1016),
   fogDay: C(0xc4d3e2), fogDusk: C(0xd89a78), fogNight: C(0x060a13),
   cloudDay: C(0xffffff), cloudDusk: C(0xffb28a), cloudNight: C(0x1b2233),
+  storm: C(0x6f7a84), stormCloud: C(0x565c66), bolt: C(0xdfe8ff),
+  bloodLight: C(0xff6a55), bloodSky: C(0x6e2020), bloodFog: C(0x1c0507),
 };
 
 // Sky dome, day/night cycle, sun + moon light, stars, clouds and fog.
@@ -120,6 +122,8 @@ export function buildSky(scene, renderer, lights) {
     hour: q.has('time') ? +q.get('time') : START_HOUR,
     speed: q.has('timescale') ? +q.get('timescale') : 1,
     day: 1, night: 0,        // day: 1 = full daylight · night: 1 = properly dark (when things come out)
+    // set by events.js: blood moon (0..1), storm clouds (0..1), fog distance multiplier, lightning flash (0..1)
+    blood: 0, overcast: 0, fogMul: 1, flash: 0,
     sunDir, lightDir,
     onDusk: null, onDawn: null,
     setHour(h) { this.hour = ((h % 24) + 24) % 24; apply(0, null); },
@@ -156,17 +160,29 @@ export function buildSky(scene, renderer, lights) {
     hemi.color.copy(PAL.hemiSkyNight).lerp(PAL.hemiSkyDay, day);
     hemi.groundColor.copy(PAL.hemiGndNight).lerp(PAL.hemiGndDay, day);
     hemi.intensity = lerp(0.2, 0.6, day);
+    // weather and omens layered on top of the time of day
+    const oc = state.overcast, bl = state.blood * (1 - day);
+    sun.intensity *= 1 - 0.7 * oc; hemi.intensity *= 1 - 0.35 * oc;
+    if (bl > 0.01) { sun.color.lerp(PAL.bloodLight, bl); hemi.color.lerp(PAL.bloodSky, bl * 0.8); }
+    if (state.flash > 0) { hemi.intensity += 2.6 * state.flash; hemi.color.lerp(PAL.bolt, state.flash); }
     scene.environmentIntensity = lerp(0.035, 0.5, day);
     renderer.toneMappingExposure = lerp(1.0, 0.82, day);
     scene.fog.color.copy(PAL.fogNight).lerp(PAL.fogDay, day).lerp(PAL.fogDusk, dusk * 0.55);
-    scene.fog.near = lerp(14, 220, day); scene.fog.far = lerp(210, 1700, day * day);
+    scene.fog.color.lerp(PAL.storm, oc * 0.75 * day).lerp(PAL.bloodFog, bl * 0.85);
+    if (state.flash > 0) scene.fog.color.lerp(PAL.bolt, state.flash * 0.5);
+    scene.fog.near = lerp(14, 220, day) * state.fogMul * (1 - 0.5 * oc);
+    scene.fog.far = lerp(210, 1700, day * day) * state.fogMul * (1 - 0.72 * oc * day);
+    nightDome.material.color.setRGB(1 + 1.2 * bl, 1 - 0.55 * bl, 1 - 0.6 * bl);
+    moon.material.color.setRGB(1, 1 - 0.6 * bl, 1 - 0.68 * bl);
 
     nightDome.material.opacity = 1 - day;
     stars.material.opacity = night * 0.9;
     moon.material.opacity = smooth(me, -0.02, 0.12);
     tmp.copy(PAL.cloudNight).lerp(PAL.cloudDay, day).lerp(PAL.cloudDusk, dusk * 0.6);
     clouds.material.color.copy(tmp);
-    clouds.material.opacity = lerp(0.5, 1, day);
+    tmp.lerp(PAL.stormCloud, oc * 0.8);
+    clouds.material.color.copy(tmp);
+    clouds.material.opacity = Math.max(lerp(0.5, 1, day), oc);
 
     if (camera) {
       const c = camera.position;

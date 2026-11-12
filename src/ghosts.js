@@ -1,15 +1,16 @@
 import * as THREE from 'three';
 import { mulberry32, hash } from './util.js';
+import { faceTexture } from './face.js';
 
 const BANSHEE_HP = 90, WISP_HP = 30, BANSHEE_DMG = 30, WISP_DMG = 7;
 const MAX_BANSHEE = 2, MAX_WISP = 6;
 const STAGE_DIST = [20, 13, 8, 5.2];   // how far from you she stands each time she reappears (the last is just behind the camera)
 const clamp = THREE.MathUtils.clamp;
-const uTime = { value: 0 };
+export const uTime = { value: 0 };
 const smooth = THREE.MathUtils.smoothstep, lerp = THREE.MathUtils.lerp;
 
 // Cloth / hair flutter in the vertex shader. `weight` is a GLSL expression of `position`.
-function sway(mat, weight, amp) {
+export function sway(mat, weight, amp) {
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.uTime = uTime;
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float uTime;')
@@ -33,7 +34,7 @@ function softDot() {
 }
 
 // Lathe with per-vertex RGBA: fades to nothing at the hem, darker in the folds, optional blood down the front.
-function robe(profile, segs, { fadeTo, ragged, blood, grime, flat = 1 }) {
+export function robe(profile, segs, { fadeTo, ragged, blood, grime, flat = 1 }) {
   const g = new THREE.LatheGeometry(profile.map(([r, y]) => new THREE.Vector2(r, y)), segs);
   const p = g.attributes.position, col = new Float32Array(p.count * 4);
   for (let i = 0; i < p.count; i++) {
@@ -59,7 +60,7 @@ function robe(profile, segs, { fadeTo, ragged, blood, grime, flat = 1 }) {
 }
 
 // Plain white RGBA vertex colours, for parts that share the robe material.
-function white(g, v = 1) {
+export function white(g, v = 1) {
   const n = g.attributes.position.count, c = new Float32Array(n * 4);
   for (let i = 0; i < n; i++) { c[i * 4] = c[i * 4 + 1] = c[i * 4 + 2] = v; c[i * 4 + 3] = 1; }
   g.setAttribute('color', new THREE.BufferAttribute(c, 4));
@@ -76,10 +77,6 @@ function makeBanshee() {
   const cloth = M(sway(new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 1, color: 0x7d796f, emissive: 0x39424c, emissiveIntensity: 0.1 }), '1.9 - position.y', 0.035));
   const skin = M(new THREE.MeshStandardMaterial({ color: 0xaeb5b3, roughness: 0.9, emissive: 0x2a3034, emissiveIntensity: 0.25 }));
   const hairM = M(sway(new THREE.MeshBasicMaterial({ color: 0x030303, side: THREE.DoubleSide }), '-position.y', 0.05)); // unlit: stays ink-black even in the torch beam
-  const dark = M(new THREE.MeshBasicMaterial({ color: 0x000000 }));
-  const eyeM = M(new THREE.MeshBasicMaterial({ color: 0xf2f2ea, fog: false }));
-  const toothM = M(new THREE.MeshStandardMaterial({ color: 0xcfc6a4, roughness: 0.6 }));
-  const blood = M(new THREE.MeshBasicMaterial({ color: 0x3d0404 }));
 
   body.add(new THREE.Mesh(robe([[0.42, 0], [0.36, 0.25], [0.27, 0.6], [0.2, 0.95], [0.155, 1.2], [0.14, 1.36], [0.165, 1.52], [0.18, 1.64], [0.12, 1.74], [0.05, 1.83]], 28,
     { fadeTo: [0, 0.5], ragged: 0.32, blood: true, grime: true, flat: 0.6 }), cloth));
@@ -102,31 +99,10 @@ function makeBanshee() {
   }
 
   const head = new THREE.Group(); head.position.set(0.045, 1.97, -0.04); body.add(head);
-  head.add(new THREE.Mesh(new THREE.SphereGeometry(0.115, 20, 16, 0, Math.PI * 2, 0, Math.PI * 0.72).scale(0.84, 1.2, 0.96), skin)); // skull without the lower jaw
-  // eyes: one far wider than the other, pinprick pupils
-  const eyes = [];
-  for (const [sx, r] of [[-1, 0.045], [1, 0.031]]) {
-    const socket = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 10).scale(1.2, 0.95, 0.45), dark); socket.position.set(sx * 0.042, 0.022, -0.093); socket.rotation.z = sx * -0.38; head.add(socket); // sunken, slanted
-    const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.0042, 6, 5), eyeM); pupil.position.set(sx * 0.042, 0.022, -0.112); head.add(pupil);
-    for (const [dx, len] of [[0, 0.13], [0.012 * sx, 0.07]]) { // blood from the eyes
-      const tear = new THREE.Mesh(new THREE.BoxGeometry(0.006, len, 0.003), blood); tear.position.set(sx * 0.042 + dx, 0.0 - len / 2 - r * 0.6, -0.104); tear.rotation.x = -0.12; head.add(tear);
-    }
-    eyes.push(pupil);
-  }
-  // dark veins crawling out from the sockets
-  for (const [x, y, rz, len] of [[-0.075, 0.05, 1.1, 0.05], [-0.02, 0.085, 0.3, 0.045], [0.07, 0.06, -1.0, 0.04], [0.085, -0.01, -1.5, 0.035], [-0.085, -0.02, 1.6, 0.04]]) {
-    const v = new THREE.Mesh(new THREE.BoxGeometry(0.003, len, 0.002), blood); v.position.set(x, y, -0.1 + Math.abs(x) * 0.25); v.rotation.z = rz; head.add(v);
-  }
-  // mouth: a black cavity, an upper row of teeth, and a lower jaw that swings away
-  const maw = new THREE.Mesh(new THREE.SphereGeometry(0.04, 12, 10), dark); maw.position.set(0, -0.07, -0.078); maw.scale.set(0.95, 0.5, 0.5); head.add(maw);
-  const jaw = new THREE.Group(); jaw.position.set(0, -0.055, 0.0); head.add(jaw);
-  jaw.add(new THREE.Mesh(new THREE.SphereGeometry(0.098, 16, 10, 0, Math.PI * 2, Math.PI * 0.55, Math.PI * 0.45).scale(0.78, 0.95, 0.93).translate(0, 0.02, -0.004), skin));
-  for (let i = 0; i < 7; i++) {
-    const x = (i - 3) * 0.0105, h = 0.014 + (i % 2) * 0.006;
-    const up = new THREE.Mesh(new THREE.BoxGeometry(0.0085, h, 0.004), toothM); up.position.set(x, -0.052 - h / 2, -0.096 + Math.abs(x) * 0.3); head.add(up);
-    const lo = new THREE.Mesh(new THREE.BoxGeometry(0.0085, h * 0.8, 0.004), toothM); lo.position.set(x, -0.028 + h * 0.4, -0.088 + Math.abs(x) * 0.3); jaw.add(lo);
-  }
-  for (const sx of [-1, 1]) { const d = new THREE.Mesh(new THREE.BoxGeometry(0.007, 0.09, 0.003), blood); d.position.set(sx * 0.03, -0.07, -0.082); d.rotation.z = sx * 0.2; jaw.add(d); }
+  // The face is painted (see face.js): near-human, soft-shaded, with a second texture for the scream.
+  const faces = { calm: faceTexture('calm'), scream: faceTexture('scream') };
+  const faceM = M(new THREE.MeshStandardMaterial({ map: faces.calm, color: 0x808080, roughness: 0.95, emissive: 0xffffff, emissiveMap: faces.calm, emissiveIntensity: 0.1 }));
+  const skull = new THREE.Mesh(new THREE.SphereGeometry(0.115, 28, 20).scale(0.86, 1.17, 0.95), faceM); head.add(skull);
 
   // hair: scalp, a long wet curtain behind, and ragged strands hanging over the face (parted around the wide eye)
   head.add(new THREE.Mesh(new THREE.SphereGeometry(0.124, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.6).rotateX(0.85).scale(0.9, 1.2, 1.05).translate(0, 0.014, 0.006), hairM));
@@ -140,7 +116,7 @@ function makeBanshee() {
     const st = new THREE.Mesh(new THREE.BoxGeometry(0.019, len, 0.005, 1, 8, 1).translate(0, -len / 2, 0), hairM);
     st.position.set(x, 0.115, -0.108 + Math.abs(x) * 0.3); st.rotation.z = (h - 0.5) * 0.12; st.userData.x = x; fringe.add(st);
   }
-  return { root, body, mats, arms, head, hang, fringe, jaw, maw, eyes, cloth, skin };
+  return { root, body, mats, arms, head, hang, fringe, skull, faces, faceM, cloth, skin };
 }
 
 // 阿飄: the little bedsheet kind. Round, translucent, hollow-eyed.
@@ -260,7 +236,8 @@ export class Ghosts {
         const a = dx * dx + dz * dz;
         if (a > 1e-9) {
           const b = fx * dx + fz * dz, c = fx * fx + fz * fz - 0.3 * 0.3, disc = b * b - a * c;
-          if (disc >= 0) { const t0 = (-b - Math.sqrt(disc)) / a, y = oy + dy * t0 - g.y; if (t0 >= 0 && y >= 0.25 && y <= 1.85) t = t0; }
+          if (c < 0) { const y = oy - g.y; if (y >= 0.25 && y <= 1.85) t = 0; } // muzzle already inside her
+          else if (disc >= 0) { const t0 = (-b - Math.sqrt(disc)) / a, y = oy + dy * t0 - g.y; if (t0 >= 0 && y >= 0.25 && y <= 1.85) t = t0; }
         }
         const th = sphere(1.97, 0.23);
         if (th >= 0 && (t < 0 || th < t)) { t = th; zone = 'head'; }
@@ -436,9 +413,9 @@ export class Ghosts {
     else rig.body.rotation.x += (lean - rig.body.rotation.x) * k(12);
     rig.head.rotation.z += (tilt - rig.head.rotation.z) * k(attack ? 30 : 40);   // snaps, never eases
     rig.head.rotation.x += (nod - rig.head.rotation.x) * k(20);
-    const o = g.jawOpen;
-    rig.jaw.rotation.x = -o * 0.85; rig.jaw.position.y = -0.055 - o * 0.04;
-    rig.maw.scale.y = 0.45 + o * 2.9; rig.maw.position.y = -0.07 - o * 0.065;
+    const face = attack ? rig.faces.scream : rig.faces.calm;
+    if (rig.faceM.map !== face) { rig.faceM.map = rig.faceM.emissiveMap = face; }
+    rig.skull.scale.y = 1 + g.jawOpen * 0.07; // the face lengthens a little as the mouth opens
     rig.hang.rotation.set(-rig.head.rotation.x * 0.8, 0, -rig.head.rotation.z * 0.9);
     // strands slide out to the sides (without getting wider) to bare the face
     g.part = (g.part ?? 1) + ((attack ? 3.2 : 1) - (g.part ?? 1)) * k(attack ? 22 : 5);
@@ -449,7 +426,7 @@ export class Ghosts {
       for (const f of a.userData.fingers) { f.a.rotation.x = curl * 0.5; f.tip.rotation.x = curl; }
     }
     rig.cloth.emissiveIntensity = 0.1 + g.flash * 1.5;
-    rig.skin.emissiveIntensity = scare ? 0.4 : 0.55; // a pale face is the first thing you make out in the dark
+    rig.faceM.emissiveIntensity = scare ? 0.16 : 0.1; // a pale face is the first thing you make out in the dark
     if (!scare) {
       g.y = this.terrain.heightAt(g.x, g.z);
       rig.root.position.set(g.x, g.y + 0.04, g.z);
