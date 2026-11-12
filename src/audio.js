@@ -75,8 +75,27 @@ export class Sfx {
       this._noise(t, 1.3, 3200, 0.22, 'bandpass', 0.8);
     });
   }
+  // two dull thumps; called faster as the dread rises
+  heartbeat(v = 1) { this._run((c, t) => { this._tone(t, 0.13, 70, 38, 0.55 * v); this._tone(t + 0.19, 0.15, 60, 34, 0.42 * v); }); }
+  // breathy syllables right by your ear, when she vanishes
+  whisper() {
+    this._run((c, t) => {
+      for (let i = 0; i < 5; i++) this._noise(t + i * 0.13 + Math.random() * 0.04, 0.11, 1800 + Math.random() * 1600, 0.13, 'bandpass', 5);
+    });
+  }
+  // horror-film string stab: a cluster of high detuned saws that snaps in and smears downwards
+  stinger() {
+    this._run((c, t) => {
+      for (const f of [1244, 1318, 1397, 1480, 1865, 1976]) {
+        const o = c.createOscillator(), g = c.createGain();
+        o.type = 'sawtooth'; o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(f * 0.94, t + 1.1);
+        g.gain.setValueAtTime(0.11, t); g.gain.exponentialRampToValueAtTime(0.0008, t + 1.2);
+        o.connect(g).connect(this.out); o.start(t); o.stop(t + 1.25);
+      }
+    });
+  }
   // jump scare: a slam of low noise under the scream
-  scare() { this._run((c, t) => { this._noise(t, 0.5, 220, 0.9); this._tone(t, 0.5, 90, 35, 0.8, 'sawtooth'); }); }
+  scare() { this._run((c, t) => { this._noise(t, 0.7, 260, 1.0); this._tone(t, 0.7, 95, 30, 0.9, 'sawtooth'); this._noise(t, 0.9, 5200, 0.35, 'highpass'); }); this.stinger(); }
   wisp() { this._run((c, t) => { const { o } = this._tone(t, 0.9, 980, 520, 0.09, 'sine'); o.frequency.setValueAtTime(980, t); }); }
   ghostDie() { this._run((c, t) => { this._tone(t, 0.6, 700, 90, 0.2, 'sine'); this._noise(t, 0.5, 2400, 0.15, 'highpass'); }); }
 

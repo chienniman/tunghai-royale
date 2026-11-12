@@ -20,7 +20,7 @@ export class CombatHUD {
       hit: $('hitmarker'), toast: $('toast'), feed: $('killfeed'), vignette: $('vignette'), dmgDir: $('dmg-dir'),
       target: $('target'), targetFill: $('target-fill'), targetName: $('target-name'), scope: $('scope'),
       inv: $('inventory'), invBody: $('inv-body'), death: $('death'), deathText: $('death-text'),
-      clock: $('clock'), scare: $('scare'),
+      clock: $('clock'), scare: $('scare'), dread: $('dread'),
     };
     this.scareT = 0;
     this.toastT = 0; this.hitT = 0; this.targetT = 0; this.vigT = 0; this.dirT = 0; this.dirFrom = null;
@@ -28,6 +28,13 @@ export class CombatHUD {
     this._sig = {};
     this.invOpen = false;
     this.onInvAction = null; // (action, arg) => void
+    { // film-grain tile for the dread overlay
+      const c = document.createElement('canvas'); c.width = c.height = 128;
+      const ctx = c.getContext('2d'), img = ctx.createImageData(128, 128);
+      for (let i = 0; i < img.data.length; i += 4) { const v = Math.random() * 255; img.data[i] = img.data[i + 1] = img.data[i + 2] = v; img.data[i + 3] = 46; }
+      ctx.putImageData(img, 0, 0);
+      this.el.dread.style.backgroundImage = `url(${c.toDataURL()}), radial-gradient(ellipse at center, transparent 30%, rgba(0, 0, 0, .92) 100%)`;
+    }
     this.el.invBody.addEventListener('pointerdown', (e) => {
       const b = e.target.closest('[data-act]'); if (!b) return;
       e.preventDefault();
@@ -63,8 +70,17 @@ export class CombatHUD {
     if (info && info.x !== undefined) { this.dirFrom = { x: info.x, z: info.z }; this.dirT = 1.2; }
   }
 
-  // Blackout flash when a ghost gets in your face.
-  scare() { this.scareT = 0.75; }
+  // A ghost in your face: one white frame, then the dark closes in and stays a while.
+  scare() { this.scareT = 1.5; }
+
+  // 0..1: film grain and a closing vignette as something gets nearer.
+  setDread(v) {
+    const el = this.el.dread;
+    if (v < 0.02) { if (this._dread) { this._dread = 0; el.style.opacity = 0; } return; }
+    this._dread = v;
+    el.style.opacity = Math.min(0.85, v * 0.9).toFixed(2);
+    el.style.backgroundPosition = `${(Math.random() * 128) | 0}px ${(Math.random() * 128) | 0}px, center`;
+  }
 
   setClock(text, night) {
     this._set('clock', this.el.clock.lastElementChild, text);
@@ -143,7 +159,8 @@ export class CombatHUD {
     el.target.style.opacity = Math.min(1, this.targetT / 0.3).toFixed(2);
     if (this.hitT > 0 && (this.hitT -= dt) <= 0) el.hit.className = '';
     this.scareT = Math.max(0, this.scareT - dt);
-    el.scare.style.opacity = Math.min(1, this.scareT / 0.35).toFixed(2);
+    el.scare.style.opacity = Math.min(1, this.scareT / 0.6).toFixed(2);
+    el.scare.classList.toggle('flash', this.scareT > 1.44);
     this.vigT = Math.max(0, this.vigT - dt * 1.4);
     const low = p.hp <= 25 && !p.dead ? 0.35 + 0.15 * Math.sin(performance.now() / 180) : 0;
     el.vignette.style.opacity = Math.max(this.vigT, low).toFixed(2);

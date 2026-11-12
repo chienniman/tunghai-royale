@@ -98,7 +98,7 @@ async function main() {
   targets.onKill = (tg, dist) => ui.kill(`${tg.kind === 'sentry' ? '擊毀' : '擊倒'} ${tg.name} · ${dist.toFixed(0)} m`);
   ghosts.onKill = (g, dist) => { ui.kill(`驅散 ${g.name} · ${dist.toFixed(0)} m`); sfx.ghostDie(); };
   let shake = 0;
-  ghosts.onScare = () => { ui.scare(); sfx.scare(); shake = 1; };
+  ghosts.onScare = () => { ui.scare(); sfx.scare(); shake = 1.6; };
   sky.onDusk = () => ui.toast('天黑了……有東西在校園裡遊蕩');
   sky.onDawn = () => { ui.toast('天亮了，阿飄都散了'); ghosts.banish(); };
   player.onDamage = (amount, info) => { ui.damaged(amount, info); sfx.hurt(); shake = Math.max(shake, Math.min(0.6, amount / 40)); };
@@ -150,7 +150,8 @@ async function main() {
       camera.position.x += (Math.random() - 0.5) * 0.1 * shake; camera.position.y += (Math.random() - 0.5) * 0.1 * shake;
     }
     // torch: from the head, along the view, only once it is dark
-    torch.intensity = 42 * sky.night * (player.dead ? 0.2 : 1);
+    // ...and it stutters and dies back whenever she is close
+    torch.intensity = 42 * sky.night * (player.dead ? 0.2 : 1) * (1 - 0.93 * ghosts.flicker);
     torch.position.set(player.pos.x, player.headY + 0.1, player.pos.z).addScaledVector(look, 0.3);
     torch.target.position.copy(torch.position).addScaledVector(look, 10);
   }
@@ -220,7 +221,7 @@ async function main() {
     renderer.setSize(innerWidth, innerHeight);
   });
 
-  let time = 0;
+  let time = 0, beatT = 0;
   // One frame of the game. dt is the clamped simulation step, raw the real elapsed time (for the FPS counter).
   function frame(dt, raw, render = true) {
     const running = (state === 'play' && input.locked) || state === 'inv';
@@ -244,6 +245,9 @@ async function main() {
       sky.update(0, camera);
     }
     world.setNight(sky.night); sfx.setNight(running ? sky.night : 0);
+    // dread: grain and darkness creep in from the edges, the heart speeds up
+    ui.setDread(ghosts.scaring ? 0.3 : ghosts.dread);
+    if (running && ghosts.dread > 0.22 && (beatT -= dt) <= 0) { beatT = THREE.MathUtils.lerp(1.15, 0.42, ghosts.dread); sfx.heartbeat(0.4 + 0.6 * ghosts.dread); }
     ui.setClock(sky.clock, sky.night > 0.5);
     updateSun();
     hud.update(dt, player, raw);

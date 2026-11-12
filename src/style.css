@@ -38,7 +38,9 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0d1014; col
 #hud::before { content: ""; position: absolute; inset: 0;   /* cinematic edge darkening */
   background: radial-gradient(ellipse at center, transparent 58%, rgba(0, 0, 0, .34)); }
 #vignette { position: absolute; inset: 0; opacity: 0; background: radial-gradient(ellipse at center, transparent 42%, rgba(200, 24, 12, .78)); }
-#scare { position: absolute; inset: 0; opacity: 0; background: radial-gradient(ellipse at center, rgba(120, 0, 0, .15) 20%, rgba(0, 0, 0, .96) 78%); }
+#dread { position: absolute; inset: 0; opacity: 0; background-repeat: repeat, no-repeat; background-size: 128px 128px, 100% 100%; }
+#scare { position: absolute; inset: 0; opacity: 0; background: radial-gradient(ellipse at center, rgba(90, 0, 0, .08) 30%, rgba(0, 0, 0, .96) 80%); }
+#scare.flash { background: #e9efe6; }
 #dmg-layer { position: absolute; inset: 0; overflow: hidden; }
 .dmg-num { position: absolute; left: 0; top: 0; font: 700 20px var(--num); color: #fff; will-change: transform; }
 .dmg-num.crit { color: #ffd23c; font-size: 26px; }
