@@ -10,6 +10,7 @@ import { Input } from './input.js';
 import { HUD } from './hud.js';
 import { CameraRig } from './camera.js';
 import { Sfx } from './audio.js';
+import { Spooks } from './spooks.js';
 import { Loot } from './game/loot.js';
 import { Targets } from './game/targets.js';
 import { Effects } from './game/effects.js';
@@ -55,6 +56,7 @@ async function main() {
   const fx = new Effects(scene);
   const sfx = new Sfx();
   const zone = new Zone(scene, terrain, world);
+  const spooks = new Spooks(sfx);
 
   const input = new Input(renderer.domElement);
   const player = new Player(scene, terrain, world.colliders);
@@ -107,7 +109,7 @@ async function main() {
   setLoading(`完成：${map.buildings.length} 棟建築、${world.treeCount} 棵樹、${loot.count} 件物資`);
   startBtn.classList.remove('hidden');
   startBtn.textContent = '點擊開始';
-  startBtn.onclick = () => { sfx.resume(); input.lock(); };
+  startBtn.onclick = () => { sfx.resume(); spooks.init(); input.lock(); };
   let started = false;
   input.onLockChange = (locked) => {
     overlay.classList.toggle('hidden', locked);
@@ -161,6 +163,7 @@ async function main() {
     buildingUniforms.uTime.value += dt;
     world.lamps.update(dt, player.pos);
     ghostClock.value += dt;
+    spooks.setListener(camera);
     hud.update(dt, player, raw);
     hud.updateCombat(dt, combat, player, rig, input);
     hud.updateZone(zone, player);
@@ -170,7 +173,7 @@ async function main() {
 
   const clock = new THREE.Clock();
   // game.step(dt) advances one frame by hand (used for automated testing).
-  window.game = { scene, camera, renderer, player, world, terrain, input, hud, rig, combat, loot, targets, fx, sfx, zone, night, torch, debug: { createGhostFigure }, step: (dt = 1 / 60) => frame(dt, dt) };
+  window.game = { scene, camera, renderer, player, world, terrain, input, hud, rig, combat, loot, targets, fx, sfx, zone, night, torch, spooks, debug: { createGhostFigure }, step: (dt = 1 / 60) => frame(dt, dt) };
   renderer.setAnimationLoop(() => {
     if (window.game.freeze) { clock.getDelta(); renderer.render(scene, camera); return; }   // debug: hold the simulation still
     const raw = clock.getDelta();
