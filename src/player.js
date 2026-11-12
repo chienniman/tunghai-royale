@@ -167,7 +167,7 @@ export class Player {
     this.colliders.resolve(this.pos, RADIUS);
     this.pos.y = this.terrain.heightAt(this.pos.x, this.pos.z);
     this.yaw = yaw; this.facing = yaw; this.pitch = -0.1; this.vel.set(0, 0, 0);
-    this.hp = 100; this.boost = 0; this.dead = false; this.deadT = 0; this.crouch = false; this.grabbed = false;
+    this.hp = 100; this.boost = 0; this.dead = false; this.deadT = 0; this.crouch = false; this.grabbed = false; this.resting = false;
     this.rig.body.rotation.set(0, 0, 0);
   }
 
@@ -211,7 +211,7 @@ export class Player {
     this.sprinting = (input.down('ShiftLeft') || input.sprint) && f > 0.5 && !this.crouch && !this.noSprint;
     if (this.sprinting) this.crouch = false;
     let speed = (this.crouch ? CROUCH : this.sprinting ? SPRINT : WALK) * this.speedMul;
-    if (this.grabbed) speed = 0; // something has hold of you
+    if (this.grabbed || this.resting) speed = 0; // something has hold of you / sitting on a bench
     if (this.boost > 60) speed *= 1.06;
 
     const sin = Math.sin(this.yaw), cos = Math.cos(this.yaw);
@@ -221,7 +221,7 @@ export class Player {
     const k = 1 - Math.exp(-accel * dt);
     this.vel.x += (wx - this.vel.x) * k; this.vel.z += (wz - this.vel.z) * k;
 
-    if (this.onGround && input.down('Space') && !this.grabbed) { this.vel.y = JUMP; this.onGround = false; this.crouch = false; }
+    if (this.onGround && input.down('Space') && !this.grabbed && !this.resting) { this.vel.y = JUMP; this.onGround = false; this.crouch = false; }
     this._physics(dt);
 
     if (this.boost > 0) { this.boost = Math.max(0, this.boost - dt); this.heal(0.8 * dt); }

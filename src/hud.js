@@ -94,8 +94,12 @@ export class HUD {
       ctx.strokeStyle = '#000'; ctx.lineWidth = 1;
       for (const m of this.markers()) {
         ctx.fillStyle = m.color || '#ff3b2a';
-        const x = W / 2 + (m.x - player.pos.x) / view * W, y = W / 2 + (m.z - player.pos.z) / view * W;
-        if (x < 0 || y < 0 || x > W || y > W) continue;
+        let x = W / 2 + (m.x - player.pos.x) / view * W, y = W / 2 + (m.z - player.pos.z) / view * W;
+        if (x < 0 || y < 0 || x > W || y > W) {
+          if (!m.pin) continue;
+          const dx = x - W / 2, dy = y - W / 2, k = (W / 2 - 9) / Math.max(Math.abs(dx), Math.abs(dy)); // objective: clamp to the frame
+          x = W / 2 + dx * k; y = W / 2 + dy * k;
+        }
         ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
       }
     }

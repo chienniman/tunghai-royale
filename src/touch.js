@@ -6,7 +6,7 @@ const STICK_RADIUS = 56;
 const capture = (el, id) => { try { el.setPointerCapture(id); } catch { /* fine without */ } };
 
 export class TouchControls {
-  // actions: { pause, bag, map, slot(i), use(id), pick(i) }
+  // actions: { pause, bag, notes, map, slot(i), use(id), pick(i) }
   constructor(input, actions) {
     this.input = input;
     const root = this.root = document.getElementById('touch');
@@ -16,6 +16,7 @@ export class TouchControls {
       <div class="t-top">
         <button class="t-sm" data-act="pause" aria-label="暫停">II</button>
         <button class="t-sm" data-act="map">地圖</button>
+        <button class="t-sm" data-act="notes">筆記</button>
         <button class="t-sm" data-act="bag">背包</button>
       </div>
       <button class="t-btn" id="t-fire" aria-label="射擊"><i></i></button>
@@ -82,6 +83,10 @@ export class TouchControls {
     delegate('weapons', 'slot', (v) => actions.slot(+v));
     delegate('quick', 'use', (v) => actions.use(v));
     delegate('pickup', 'pick', (v) => actions.pick(+v));
+    // the "E" prompt is the interact button: tap to use, hold to search
+    const use = document.getElementById('interact');
+    use.addEventListener('pointerdown', (e) => { e.preventDefault(); input.keys.add('KeyE'); input.press('KeyE'); });
+    for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) use.addEventListener(ev, () => input.keys.delete('KeyE'));
   }
 
   show(on) { this.root.classList.toggle('hidden', !on); if (!on) this.resetAds(); }

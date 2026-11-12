@@ -75,6 +75,9 @@ body.touch #event { top: 70px; min-width: 220px; padding: 5px 18px 6px; } body.t
 #clock i { width: 13px; height: 13px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 8px rgba(242, 200, 75, .8); }
 #clock.night { color: #b9cbff; }
 #clock.night i { background: transparent; box-shadow: inset -4px -1px 0 0 #dfe8ff; }
+#objective { max-width: 340px; margin-top: 6px; padding: 4px 10px 5px 13px; font-size: 13px; line-height: 1.5; background: linear-gradient(90deg, var(--ink), transparent); border-left: 2px solid #8fc8ff; }
+#objective:empty, #ward:empty { display: none; }
+#ward { margin-top: 4px; padding-left: 13px; font-size: 12px; color: var(--gold); letter-spacing: 1px; }
 #stats { margin-top: 4px; padding-left: 13px; font: 500 13px var(--num); letter-spacing: .5px; opacity: .7; }
 
 #topright { position: absolute; top: 16px; right: 16px; width: 200px; }
@@ -121,6 +124,13 @@ body.touch #event { top: 70px; min-width: 220px; padding: 5px 18px 6px; } body.t
 #pickup b { position: absolute; left: 9px; top: 50%; width: 20px; height: 20px; margin-top: -10px; line-height: 20px; text-align: center; font: 700 13px var(--num);
   color: #14110a; background: var(--gold); border-radius: 3px; text-shadow: none; }
 
+#interact { position: absolute; right: calc(50% + 70px); top: calc(50% + 30px); display: none; align-items: center; gap: 8px; padding: 6px 14px 6px 8px; font-size: 14px; font-weight: 700;
+  background: var(--ink-strong); border-right: 3px solid #8fc8ff; border-radius: 2px 0 0 2px; white-space: nowrap; overflow: hidden; }
+#interact.show { display: flex; }
+#interact b { width: 22px; height: 22px; line-height: 22px; text-align: center; font: 700 13px var(--num); color: #0c1420; background: #8fc8ff; border-radius: 3px; text-shadow: none; }
+#interact i { position: absolute; left: 0; bottom: 0; height: 3px; width: 0; background: #8fc8ff; }
+#subtitle { position: absolute; left: 50%; bottom: 128px; transform: translateX(-50%); max-width: 70vw; padding: 6px 18px; text-align: center; opacity: 0;
+  font-size: 19px; font-weight: 500; letter-spacing: 3px; color: #e6eeff; background: rgba(0, 0, 0, .45); text-shadow: 0 0 12px rgba(140, 180, 255, .7), 0 2px 3px #000; }
 #progress { position: absolute; left: 50%; top: calc(50% + 72px); transform: translateX(-50%); width: 220px; text-align: center; opacity: 0; }
 #progress.show { opacity: 1; }
 #progress-fill { height: 100%; width: 0; background: linear-gradient(90deg, var(--gold), var(--gold-hi)); }
@@ -203,6 +213,43 @@ body.touch #event { top: 70px; min-width: 220px; padding: 5px 18px 6px; } body.t
   border: 1px solid rgba(255, 255, 255, .22); border-radius: 3px; cursor: pointer; }
 #inv-body button:hover { color: #14110a; background: var(--gold); border-color: var(--gold); }
 
+/* ---------- story: reader, notebook, the choice on the bridge ---------- */
+.modal { position: fixed; inset: 0; z-index: 19; display: flex; align-items: center; justify-content: center; background: rgba(3, 5, 8, .72); }
+.paper { position: relative; width: min(620px, calc(100% - 32px)); max-height: 88vh; overflow: auto; padding: 26px 34px 24px; color: #2c261c;
+  background: linear-gradient(180deg, #efe6cf, #e2d6b8); border-radius: 3px; box-shadow: 0 30px 90px rgba(0, 0, 0, .7), inset 0 0 60px rgba(120, 90, 40, .25); text-shadow: none; }
+.r-head { display: flex; justify-content: space-between; font-size: 12px; letter-spacing: 3px; }
+.r-tag { padding: 2px 10px; color: #efe6cf; background: #6e2a22; }
+.r-tag.now { background: #2d4a66; } .r-tag.future { background: #5a4a8a; } .r-tag.rumor { background: #3d5a3a; }
+.r-count { opacity: .6; font-family: var(--num); letter-spacing: 1px; }
+.paper h2 { margin: 14px 0 4px; font-size: 26px; font-weight: 900; letter-spacing: 4px; }
+.r-meta { font-size: 13px; letter-spacing: 1px; opacity: .65; padding-bottom: 12px; border-bottom: 1px solid rgba(60, 40, 20, .3); }
+.r-body { margin: 16px 0; font-size: 15px; line-height: 2; white-space: pre-wrap; letter-spacing: .5px; font-family: "Noto Serif TC", "PMingLiU", "Songti TC", serif; }
+.r-foot { padding-top: 12px; font-size: 13px; line-height: 1.7; color: #5a3a22; border-top: 1px solid rgba(60, 40, 20, .3); }
+.r-foot:empty { display: none; }
+#reader-close { display: block; margin: 18px auto 0; padding: 8px 34px; font: 700 14px "Noto Sans TC", sans-serif; letter-spacing: 4px; color: #efe6cf; background: #3a2e22; border: 0; border-radius: 3px; cursor: pointer; }
+#journal-close { float: right; padding: 5px 16px; font: 500 13px "Noto Sans TC", sans-serif; letter-spacing: 2px; color: #f1f2f4; background: rgba(255, 255, 255, .1); border: 1px solid rgba(255, 255, 255, .25); border-radius: 3px; cursor: pointer; }
+#journal-body { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+#journal-body h3 { margin: 0 0 9px; padding-bottom: 6px; font-size: 15px; font-weight: 700; letter-spacing: 6px; border-bottom: 1px solid var(--line); }
+#journal-body h3 small { float: right; font: 600 12px var(--num); letter-spacing: 0; opacity: .7; }
+#journal-body .past h3 { color: #e0a89a; } #journal-body .now h3 { color: #8fc8ff; } #journal-body .future h3 { color: #c0aef0; } #journal-body .rumors h3 { color: #a8d0a0; }
+#journal-body .rumors { grid-column: 1 / -1; }
+#journal-body .rumors .list { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+#journal-body .e { padding: 7px 10px; margin-bottom: 5px; font-size: 13px; line-height: 1.6; background: rgba(255, 255, 255, .055); border-left: 2px solid rgba(255, 255, 255, .22); border-radius: 0 3px 3px 0; }
+#journal-body .e b { display: block; font-size: 13px; } #journal-body .e small { opacity: .6; font-size: 11px; }
+#journal-body .e[data-read] { cursor: pointer; } #journal-body .e[data-read]:hover { background: rgba(255, 255, 255, .12); }
+#journal-body .e.lock { opacity: .35; } #journal-body .e.verse { white-space: pre-wrap; font-family: "Noto Serif TC", "PMingLiU", serif; }
+#journal-body .goal { padding: 8px 10px; margin-bottom: 8px; font-size: 13px; line-height: 1.6; background: rgba(143, 200, 255, .12); border-left: 2px solid #8fc8ff; }
+.c-panel { width: min(560px, calc(100% - 32px)); padding: 26px 28px; text-align: center; background: linear-gradient(180deg, rgba(22, 28, 36, .96), rgba(10, 12, 16, .97)); border: 1px solid var(--line); border-top: 2px solid #8fc8ff; border-radius: 4px; }
+.c-panel p { margin: 0 0 18px; font-size: 16px; line-height: 1.8; letter-spacing: 1px; }
+#choice-list button { display: block; width: 100%; margin-top: 9px; padding: 13px 16px; font: 500 15px "Noto Sans TC", sans-serif; letter-spacing: 1px; color: #f1f2f4; text-align: left;
+  background: rgba(255, 255, 255, .07); border: 1px solid rgba(255, 255, 255, .2); border-radius: 3px; cursor: pointer; }
+#choice-list button:hover { background: rgba(143, 200, 255, .2); border-color: #8fc8ff; }
+body.touch #interact { pointer-events: auto; z-index: 13; padding: 9px 16px 9px 10px; } body.touch #interact b { display: none; }
+body.touch #objective { max-width: 220px; font-size: 11px; margin-top: 3px; } body.touch #subtitle { bottom: 132px; font-size: 15px; }
+body.touch .paper { padding: 14px 20px; max-height: 94vh; } body.touch .paper h2 { font-size: 19px; margin-top: 8px; } body.touch .r-body { font-size: 13px; line-height: 1.8; margin: 10px 0; }
+body.touch #journal-body .rumors .list { grid-template-columns: repeat(3, 1fr); }
+@media (max-width: 900px) { #journal-body .rumors .list { grid-template-columns: repeat(2, 1fr); } }
+
 /* ---------- eliminated ---------- */
 #death { position: fixed; inset: 0; z-index: 17; display: flex; align-items: center; justify-content: center; pointer-events: none;
   background: radial-gradient(ellipse at center, rgba(60, 8, 4, .3), rgba(16, 2, 1, .82)); }
@@ -251,7 +298,7 @@ body.touch #event { top: 70px; min-width: 220px; padding: 5px 18px 6px; } body.t
 #t-jump { right: 40px; bottom: 194px; width: 58px; height: 58px; }
 #t-crouch { right: 138px; bottom: 62px; width: 54px; height: 54px; }
 #t-reload { right: 108px; bottom: 208px; width: 52px; height: 52px; font-size: 12px; }
-#touch .t-top { position: absolute; top: 10px; right: 150px; display: flex; gap: 8px; }
+#touch .t-top { position: absolute; top: 10px; right: 150px; display: flex; gap: 6px; }
 .t-sm { position: static; width: auto; height: 34px; padding: 0 12px; border-radius: 17px; border-width: 1px; font-weight: 500; }
 
 /* Touch devices: compact HUD arranged around the thumbs, HUD cards double as buttons. */

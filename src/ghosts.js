@@ -158,6 +158,13 @@ export class Ghosts {
     this._pulse = 0;
     this.onKill = null;      // (ghost, dist) => void
     this.onScare = null;     // (ghost) => void, fired when one reaches the player's face
+    this.onLine = null;      // (kind: 'appear' | 'vanish' | 'lunge') => void, she says something
+    this.onWard = null;      // (ghost) => void, a charm stopped her
+    // set by quest.js as the story moves on:
+    //   'hunt'   default · 'follow' she knows what you carry and only walks with you
+    //   'rage'   the letter was burnt · 'gone' she has been released
+    this.mood = 'hunt';
+    this.safe = [];          // [{ x, z, r }] lit lamps and shrines: she and the 阿飄 will not enter
     this.scaring = null;
     this._v = new THREE.Vector3(); this._n = new THREE.Vector3();
   }
@@ -174,9 +181,11 @@ export class Ghosts {
   }
 
   get activeCount() { return this.list.filter((g) => g.active).length; }
+  inSafe(x, z) { for (const s of this.safe) if ((x - s.x) ** 2 + (z - s.z) ** 2 < s.r * s.r) return true; return false; }
 
   // Stand her somewhere for stage n: first at the edge of what you can see, afterwards always out of view.
   _place(g, player, stage) {
+    stage = Math.max(0, stage);
     const d0 = STAGE_DIST[Math.min(stage, STAGE_DIST.length - 1)];
     for (let tries = 0; tries < 16; tries++) {
       const side = this.rng() < 0.5 ? -1 : 1;
@@ -197,7 +206,7 @@ export class Ghosts {
     if (!g) return null;
     if (kind === 'banshee') {
       if (!this._place(g, player, 0)) return null;
-      Object.assign(g, { stage: 0, state: 'watch', stareT: 0, seenT: 0, hopT: 1, holdT: 0, jawOpen: 0.1, reach: 0.05, tilt: 0.95 });
+      Object.assign(g, { stage: 0, state: 'watch', stareT: 0, seenT: 0, hopT: 1, holdT: 0, jawOpen: 0.1, reach: 0.05, tilt: 0.95, spoke: false });
     } else {
       let ok = false;
       for (let tries = 0; tries < 10 && !ok; tries++) {
@@ -250,7 +259,10 @@ export class Ghosts {
   damage(g, amount, dist = 0) {
     if (!g.alive) return false;
     g.hp -= amount; g.flash = 1;
-    if (g.kind === 'banshee' && g.state === 'watch') this._lunge(g); // shooting her only makes her come for you
+    if (g.kind === 'banshee' && g.state === 'watch') { // shooting her only makes her come for you (unless she has stopped fighting)
+      if (this.mood === 'follow') { this._blink(g, true); return false; }
+      this._lunge(g);
+    }
     if (g.hp > 0) return false;
     g.hp = 0; g.alive = false; g.state = 'die'; g.t = 0;
     this.stats.ghosts++;
@@ -266,7 +278,13 @@ export class Ghosts {
     return true;
   }
 
-  _lunge(g) { g.state = 'windup'; g.t = 0; g.opacity = 1; this.audio?.scream(); this._pulse = 1; }
+  _lunge(g) { g.state = 'windup'; g.t = 0; g.opacity = 1; this.audio?.scream(); this._pulse = 1; this.onLine?.('lunge'); }
+  // Gone between one frame and the next; back somewhere else shortly. keep = do not come any closer next time.
+  _blink(g, keep = false) {
+    g.state = 'gone'; g.t = 0; g.goneFor = 1.1 + this.rng() * 1.8; g.opacity = 0;
+    if (keep) g.stage = Math.max(-1, g.stage - 1);
+    this._pulse = 1; this.audio?.whisper();
+  }
 
   // sky: { night (0..1), hour } · cam: { pos, look }
   update(dt, player, cam, sky) {
@@ -275,12 +293,13 @@ export class Ghosts {
     // how far into the night we are: more of them as it gets later (peaks around 01:00)
     const depth = dark ? 1 - Math.min(1, Math.abs(((sky.hour + 6) % 24) - 7) / 6) : 0;
     if (dark) {
-      const wantB = depth > 0.55 ? 2 : 1, wantW = 1 + Math.round(depth * (MAX_WISP - 2));
+      const wantB = this.mood === 'gone' ? 0 : this.mood === 'follow' ? 1 : depth > 0.55 || this.mood === 'rage' ? 2 : 1, wantW = 1 + Math.round(depth * (MAX_WISP - 2));
       const count = (k) => this.list.filter((g) => g.kind === k && g.active).length;
-      if ((this.spawnT.banshee -= dt) <= 0) { this.spawnT.banshee = 14 + this.rng() * 12; if (count('banshee') < wantB) this._spawn('banshee', player); }
+      if ((this.spawnT.banshee -= dt) <= 0) { this.spawnT.banshee = (this.mood === 'rage' ? 6 : 14) + this.rng() * 12; if (count('banshee') < wantB) this._spawn('banshee', player); }
       if ((this.spawnT.wisp -= dt) <= 0) { this.spawnT.wisp = 5 + this.rng() * 6; if (count('wisp') < wantW) this._spawn('wisp', player); }
     } else if (this.activeCount) this.banish();
 
+    if (this.mood === 'gone') for (const g of this.list) if (g.kind === 'banshee' && g.active && g.state !== 'vanish' && g.state !== 'die') { g.state = 'vanish'; g.t = 0; g.alive = false; }
     let nearest = null, nd = Infinity, dread = 0;
     for (const g of this.list) {
       if (!g.active) continue;
@@ -352,26 +371,27 @@ export class Ghosts {
         g.yaw = want;                     // always squarely facing you
         if (seen) {
           g.seenT += dt; if (dot > 0.93) g.stareT += dt;
-          if (dist < 6.5) this._lunge(g);  // you turned round and she was right there
-          else if (g.stareT > 0.55 || g.seenT > 2.8) { // looked straight at her: gone, between one frame and the next
-            g.state = 'gone'; g.t = 0; g.goneFor = 1.1 + this.rng() * 1.8; g.opacity = 0;
-            this._pulse = 1; this.audio?.whisper();
-          }
+          if (!g.spoke) { g.spoke = true; this.onLine?.('appear'); }
+          const calm = this.mood === 'follow' || this.inSafe(player.pos.x, player.pos.z);
+          if (dist < 6.5) { if (calm) this._blink(g, true); else this._lunge(g); }  // you turned round and she was right there
+          else if (this.mood === 'rage' && dist < 18 && g.seenT > 0.4) this._lunge(g); // she no longer hides her face
+          else if (g.stareT > 0.55 || g.seenT > 2.8) { this._blink(g, this.mood === 'follow' && g.stage >= 2); this.onLine?.('vanish'); } // looked straight at her
         } else {
           g.stareT = Math.max(0, g.stareT - dt);
           // only moves while nobody is looking, a hop at a time
           if ((g.hopT -= dt) <= 0 && dist > 5) {
             g.hopT = 0.4 + this.rng() * 0.35;
-            const hop = Math.min(1.3, dist - 4.8);
-            g.x -= Math.sin(want) * hop; g.z -= Math.cos(want) * hop;
+            const hop = Math.min(1.3, dist - 4.8), nx = g.x - Math.sin(want) * hop, nz = g.z - Math.cos(want) * hop;
+            if (!this.inSafe(nx, nz)) { g.x = nx; g.z = nz; }   // will not step into the light
           }
-          if (dist <= 5.6) { g.holdT += dt; if (g.holdT > 5) this._lunge(g); } // tired of waiting behind you
+          if (this.inSafe(g.x, g.z)) this._blink(g, true);       // a lamp came on around her
+          else if (dist <= 5.6 && this.mood !== 'follow' && !this.inSafe(player.pos.x, player.pos.z)) { g.holdT += dt; if (g.holdT > 5) this._lunge(g); } // tired of waiting behind you
         }
         break;
       case 'gone':
         if (g.t > g.goneFor) {
           g.stage++;
-          if (this._place(g, player, g.stage)) { g.state = 'watch'; g.t = 0; g.stareT = g.seenT = g.holdT = 0; g.hopT = 0.8; g.los = false; g.losT = 0; }
+          if (this._place(g, player, g.stage)) { g.state = 'watch'; g.t = 0; g.stareT = g.seenT = g.holdT = 0; g.hopT = 0.8; g.los = false; g.losT = 0; g.spoke = false; }
           else g.goneFor += 0.5;
         }
         break;
@@ -379,7 +399,9 @@ export class Ghosts {
       case 'rush':
         turn(9); step(15);
         g.x += Math.sin(g.t * 38) * 0.05; // jerks from side to side as she comes
-        if (dist < 1.3) {
+        if (dist < 1.3 && player.ward > 0) { // the charm burns instead of you
+          player.ward--; g.state = 'vanish'; g.t = 0; g.alive = false; this._pulse = 1; this.onWard?.(g);
+        } else if (dist < 1.3) {
           g.state = 'scare'; g.t = 0; this.scaring = g;
           player.damage(BANSHEE_DMG, { raw: true, x: g.x, z: g.z, source: g.name });
           this.onScare?.(g);
@@ -440,6 +462,7 @@ export class Ghosts {
     turn(3);
     g.yaw += Math.sin(uTime.value * 2.2 + g.seed) * 1.2 * dt; // zig-zag
     g.biteCd -= dt;
+    if (this.inSafe(g.x, g.z) || (dist < 12 && this.inSafe(player.pos.x, player.pos.z))) { step(-2.6); return; } // backs away from the light
     if (dist > 1.3) step(g.biteCd > 0 && dist < 4 ? -2.2 : 3.1);
     else if (g.biteCd <= 0) {
       g.biteCd = 1.6; g.flash = 0.6;

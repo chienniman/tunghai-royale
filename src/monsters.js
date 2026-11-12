@@ -326,7 +326,10 @@ export class Monsters {
     const rig = m.rig, p = player.pos;
     if (m.state === 'hang') {
       if (!m.creak || (m.creak -= dt) <= 0) { m.creak = 2.2 + this.rng() * 2; if (dist < 16) this.audio?.creak(clamp(1 - dist / 16, 0.15, 1)); }
-      if (dist < 1.7 && !player.dead && !player.grabbed) { m.state = 'drop'; m.t = 0; this.audio?.scream(); }
+      if (dist < 1.7 && !player.dead && !player.grabbed) {
+        if (player.ward > 0) { player.ward--; m.state = 'retreat'; m.t = 0; this.onWard?.(m); } // the charm burns instead of you
+        else { m.state = 'drop'; m.t = 0; this.audio?.scream(); }
+      }
     } else if (m.state === 'drop') { // down the rope and onto you
       m.lift += (0.12 - m.lift) * (1 - Math.exp(-14 * dt));
       const fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw);

@@ -16,6 +16,9 @@ import { Monsters } from './monsters.js';
 import { Events } from './events.js';
 import { Sfx } from './audio.js';
 import { TouchControls } from './touch.js';
+import { Props } from './world/props.js';
+import { Quest } from './quest.js';
+import { Story, FRAGMENTS, FORTUNES, ENDINGS, RUMORS } from './story.js';
 
 const $ = (id) => document.getElementById(id);
 const setLoading = (t) => { $('loading-text').textContent = t; };
@@ -97,7 +100,13 @@ async function main() {
 
   const hud = new HUD(world, terrain); ui.hud = hud;
   const events = new Events({ scene, terrain, world, loot, fx, audio: sfx, ui, sky, ghosts, monsters, player });
-  hud.markers = () => [...targets.alerted(), ...events.markers];
+  // Story and the things you can use (E). Progress is kept in localStorage; `?reset=1` starts the story over.
+  let store = null; try { store = window.localStorage; } catch { /* blocked: play without saving */ }
+  const story = new Story(store); if (q.has('reset')) story.reset();
+  const props = new Props(scene, terrain, world);
+  const propCount = props.populate(map, spawn);
+  const quest = new Quest({ story, props, ui, hud, player, inv, combat, loot, ghosts, monsters, events, sky, sfx, world, terrain, spawn });
+  hud.markers = () => [...targets.alerted(), ...events.markers, ...quest.markers];
 
   targets.onKill = (tg, dist) => ui.kill(`${tg.kind === 'sentry' ? '擊毀' : '擊倒'} ${tg.name} · ${dist.toFixed(0)} m`);
   ghosts.onKill = (g, dist) => { ui.kill(`驅散 ${g.name} · ${dist.toFixed(0)} m`); sfx.ghostDie(); };
@@ -174,9 +183,16 @@ async function main() {
 
   // UI flow. state: 'menu' (start / paused) · 'play' · 'inv' (backpack open, game keeps running) · 'closing'
   const overlay = $('overlay'), startBtn = $('start-btn');
-  let state = 'menu';
+  // state: 'menu' (start / paused) · 'play' · 'inv' (a panel is open and the mouse is free) · 'closing'
+  // modal: which panel. The backpack leaves the game running; reading pauses it.
+  let state = 'menu', modal = null;
+  const panels = { reader: $('reader'), journal: $('journal'), choice: $('choice') };
+  const showPanels = () => {
+    ui.modal = modal; ui.setInventoryOpen(modal === 'inv');
+    for (const [k, el] of Object.entries(panels)) el.classList.toggle('hidden', modal !== k);
+  };
   const showMenu = () => {
-    state = 'menu'; ui.setInventoryOpen(false);
+    state = 'menu'; modal = null; showPanels();
     overlay.classList.remove('hidden'); $('hud').classList.add('hidden');
     setLoading('已暫停'); startBtn.textContent = '繼續';
   };
@@ -186,16 +202,27 @@ async function main() {
   startBtn.onclick = () => { sfx.unlock(); input.lock(); };
   input.onLockChange = (locked) => {
     if (locked) {
-      state = 'play'; ui.setInventoryOpen(false);
+      state = 'play'; modal = null; showPanels();
       overlay.classList.add('hidden'); $('hud').classList.remove('hidden');
     } else if (state !== 'inv') showMenu();
     touchUI?.show(locked);
   };
   input.onLockError = () => { if (state === 'closing') showMenu(); };
-  const openInventory = () => { state = 'inv'; ui.setInventoryOpen(true); input.unlock(); };
-  const closeInventory = () => {
-    state = 'closing'; ui.setInventoryOpen(false); input.lock();
+  const openModal = (name) => {
+    modal = name; showPanels();
+    if (state !== 'inv') { state = 'inv'; input.unlock(); } // already open: just swap panels
+  };
+  const closeModal = () => {
+    modal = null; showPanels(); state = 'closing'; input.lock();
     setTimeout(() => { if (state === 'closing' && !input.locked) showMenu(); }, 700);
+  };
+  const canOpen = () => state === 'play' && input.locked && !player.dead;
+  ui.onModal = (name) => (name ? openModal(name) : closeModal());
+  const openJournal = () => ui.journal(story, { FRAGMENTS, FORTUNES, ENDINGS, RUMORS });
+  ui.onJournalRead = (id) => {
+    if (id === 'ending') { const e = ENDINGS[story.ending]; ui.read({ tag: '未來', title: e.name, meta: '五十年後', body: e.future, foot: e.effect }); return; }
+    const f = FRAGMENTS.find((x) => x.id === id);
+    if (f) ui.read({ tag: '過去', title: f.title, meta: `${f.where}　·　${f.date}`, body: f.body, foot: f.next });
   };
   ui.onInvAction = (act, arg) => {
     if (act === 'take') combat.pickup(ui._near?.[+arg]);
@@ -203,11 +230,12 @@ async function main() {
     else if (act === 'drop1') combat.drop(arg, 1);
     else if (act === 'use') combat.startUse(arg);
   };
-  $('inv-close').onclick = () => { if (state === 'inv') closeInventory(); };
+  $('inv-close').onclick = () => { if (modal === 'inv') closeModal(); };
   $('respawn-btn').onclick = () => { if (player.dead && player.deadT > 0.8) respawn(); };
   const touchUI = touch ? new TouchControls(input, {
     pause: () => input.unlock(),
-    bag: () => { if (state === 'play' && !player.dead) openInventory(); },
+    bag: () => { if (canOpen()) openModal('inv'); },
+    notes: () => { if (canOpen()) openJournal(); },
     map: () => hud.toggleBig(),
     slot: (i) => { if (!player.dead) combat._switch(inv.select(i)); },
     use: (id) => combat.startUse(id),
@@ -217,10 +245,10 @@ async function main() {
   addEventListener('keydown', (e) => {
     if (e.repeat) return;
     if (e.code === 'KeyM' && input.locked) hud.toggleBig();
-    else if (e.code === 'Tab') {
-      if (state === 'play' && input.locked && !player.dead) openInventory();
-      else if (state === 'inv') closeInventory();
-    } else if (e.code === 'Escape' && state === 'inv') closeInventory();
+    else if (e.code === 'Tab') { if (canOpen()) openModal('inv'); else if (modal === 'inv') closeModal(); }
+    else if (e.code === 'KeyJ') { if (canOpen()) openJournal(); else if (modal === 'journal') closeModal(); }
+    else if (e.code === 'KeyE' && modal === 'reader') ui.closeReader();
+    else if (e.code === 'Escape' && state === 'inv') { if (modal === 'reader') ui.closeReader(); else closeModal(); }
     else if (e.code === 'Enter' && player.dead && player.deadT > 0.8 && state !== 'menu') respawn();
   });
   addEventListener('resize', () => {
@@ -231,7 +259,7 @@ async function main() {
   let time = 0, beatT = 0;
   // One frame of the game. dt is the clamped simulation step, raw the real elapsed time (for the FPS counter).
   function frame(dt, raw, render = true) {
-    const running = (state === 'play' && input.locked) || state === 'inv';
+    const running = (state === 'play' && input.locked) || (state === 'inv' && modal === 'inv');
     if (running) {
       combat.pre(dt, input);
       player.update(dt, input);
@@ -242,6 +270,7 @@ async function main() {
       ghosts.update(dt, player, cam, sky);
       monsters.update(dt, player, cam, sky);
       events.update(dt, cam);
+      quest.update(dt, input, true);
       loot.update(dt, player.pos.x, player.pos.z);
       fx.update(dt);
       loot.animate(time += dt);
@@ -252,7 +281,9 @@ async function main() {
       updateCamera(dt);
       loot.update(dt, player.pos.x, player.pos.z);
       sky.update(0, camera);
+      quest.update(0, input, false);
     }
+    props.update(dt, player.pos.x, player.pos.z, time);
     world.setNight(events.blackout > 0 ? 0 : sky.night); sfx.setNight(running ? sky.night : 0);
     // dread: grain and darkness creep in from the edges, the heart speeds up
     const dread = Math.max(ghosts.dread, monsters.dread);
@@ -270,7 +301,7 @@ async function main() {
   const clock = new THREE.Clock();
   // Debug handle. step() advances the simulation without waiting for the browser's frame clock.
   window.game = {
-    scene, camera, renderer, player, world, terrain, input, hud, inv, loot, targets, ghosts, monsters, events, sky, combat, ui, fx, sfx, spawn, lootClusters,
+    scene, camera, renderer, player, world, terrain, input, hud, inv, loot, targets, ghosts, monsters, events, sky, story, props, quest, propCount, combat, ui, fx, sfx, spawn, lootClusters,
     step(dt = 1 / 60, n = 1, render = false) { for (let i = 0; i < n; i++) frame(dt, dt, render && i === n - 1); },
   };
   renderer.setAnimationLoop(() => {

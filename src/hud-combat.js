@@ -21,8 +21,16 @@ export class CombatHUD {
       target: $('target'), targetFill: $('target-fill'), targetName: $('target-name'), scope: $('scope'),
       inv: $('inventory'), invBody: $('inv-body'), death: $('death'), deathText: $('death-text'),
       clock: $('clock'), scare: $('scare'), dread: $('dread'), event: $('event'), fade: $('fade'),
+      objective: $('objective'), ward: $('ward'), interact: $('interact'), subtitle: $('subtitle'),
+      reader: $('reader'), journal: $('journal'), journalBody: $('journal-body'), choice: $('choice'), choiceList: $('choice-list'),
     };
-    this.scareT = 0; this.bannerT = 0; this.fadeT = 0; this.fadeMax = 1;
+    this.scareT = 0; this.bannerT = 0; this.fadeT = 0; this.fadeMax = 1; this.subT = 0;
+    this.onModal = null;     // (name | null) => void: main.js shows / hides the panel and frees the mouse
+    this._afterRead = null; this._onChoice = null;
+    $('reader-close').onclick = () => this.closeReader();
+    $('journal-close').onclick = () => this.onModal?.(null);
+    this.el.choiceList.addEventListener('click', (e) => { const b = e.target.closest('[data-id]'); if (!b) return; const f = this._onChoice; this._onChoice = null; f?.(b.dataset.id); if (this.modal === 'choice') this.onModal?.(null); });
+    this.el.journalBody.addEventListener('click', (e) => { const b = e.target.closest('[data-read]'); if (b) this.onJournalRead?.(b.dataset.read); });
     this.toastT = 0; this.hitT = 0; this.targetT = 0; this.vigT = 0; this.dirT = 0; this.dirFrom = null;
     this.feed = [];
     this._sig = {};
@@ -68,6 +76,62 @@ export class CombatHUD {
   damaged(amount, info) {
     this.vigT = Math.min(1, 0.35 + amount / 40);
     if (info && info.x !== undefined) { this.dirFrom = { x: info.x, z: info.z }; this.dirT = 1.2; }
+  }
+
+  // --- story UI ---------------------------------------------------------------
+  // "[E] verb label" beside the crosshair; fill = 0..1 progress for hold-to-search.
+  prompt(verb, label = '', fill = 0) {
+    const el = this.el.interact;
+    if (!verb) { if (this._prompt) { this._prompt = ''; el.classList.remove('show'); } return; }
+    const text = `${verb}　${label}`;
+    if (this._prompt !== text) { this._prompt = text; el.children[1].textContent = text; el.classList.add('show'); }
+    el.lastElementChild.style.width = (fill * 100).toFixed(0) + '%';
+  }
+
+  // Her voice.
+  subtitle(text) { this.el.subtitle.textContent = `「${text}」`; this.subT = 4; }
+  setObjective(text) { if (this._obj !== text) { this._obj = text; this.el.objective.textContent = text ? `目標　${text}` : ''; } }
+  setWard(n) { if (this._ward !== n) { this._ward = n; this.el.ward.textContent = n ? `平安符 ×${n}` : ''; } }
+
+  // Open the reading panel. page: { tag, title, meta, body, foot, count }; after: called when it is closed.
+  read(page, after = null) {
+    const el = this.el.reader, q = (s) => el.querySelector(s);
+    const cls = { 過去: '', 現在: 'now', 未來: 'future', 怪談: 'rumor' }[page.tag] ?? '';
+    q('.r-tag').textContent = page.tag; q('.r-tag').className = 'r-tag ' + cls;
+    q('.r-count').textContent = page.count || '';
+    q('h2').textContent = page.title; q('.r-meta').textContent = page.meta || '';
+    q('.r-body').textContent = page.body; q('.r-foot').textContent = page.foot || '';
+    el.querySelector('.paper').scrollTop = 0;
+    this._afterRead = after;
+    this.onModal?.('reader');
+  }
+  // Closing turns the page if there is one, otherwise puts the paper away.
+  closeReader() { const f = this._afterRead; this._afterRead = null; if (f) f(); else this.onModal?.(null); }
+
+  // A question with buttons. options: [{ id, label }]
+  choice(text, options, onPick) {
+    this.el.choice.querySelector('p').textContent = text;
+    this.el.choiceList.innerHTML = options.map((o) => `<button data-id="${o.id}">${o.label}</button>`).join('');
+    this._onChoice = onPick;
+    this.onModal?.('choice');
+  }
+
+  // The notebook: 過去 / 現在 / 未來 and the rumours. data comes from story.js.
+  journal(story, { FRAGMENTS, FORTUNES, ENDINGS, RUMORS }) {
+    const past = FRAGMENTS.map((f, i) => (story.has(f.id)
+      ? `<div class="e" data-read="${f.id}"><b>${f.title}</b><small>${f.date}　·　${f.where}</small></div>`
+      : `<div class="e lock"><b>${i === story.stage ? '？　' + f.hint : '？？？'}</b></div>`)).join('');
+    const o = story.objective;
+    const now = (o ? `<div class="goal">${o.text}<br><small>${o.where}</small></div>` : '') +
+      (story.log.length ? story.log.slice(-9).reverse().map((l) => `<div class="e">${l}</div>`).join('') : '<div class="e lock">還沒有做什麼值得記下來的事。</div>');
+    let future = story.ending ? `<div class="e" data-read="ending"><b>${ENDINGS[story.ending].name}</b><small>五十年後</small></div>` : '';
+    future += story.fortunes.map((i) => `<div class="e verse"><b>${FORTUNES[i].no}</b>${FORTUNES[i].verse}</div>`).join('');
+    if (!future) future = '<div class="e lock">還沒有人知道。去土地公廟拜一拜、抽支籤。</div>';
+    const rumors = RUMORS.map((r) => (story.rumors.includes(r.id) ? `<div class="e"><b>${r.title}</b>${r.body.replace(/\n/g, '<br>')}</div>` : '<div class="e lock"><b>？？？</b>公佈欄上也許有寫</div>')).join('');
+    this.el.journalBody.innerHTML = `<div class="past"><h3>過去 <small>${story.stage} / ${FRAGMENTS.length}</small></h3>${past}</div>` +
+      `<div class="now"><h3>現在</h3>${now}</div><div class="future"><h3>未來</h3>${future}</div>` +
+      `<div class="rumors"><h3>校園怪談 <small>${story.rumors.length} / ${RUMORS.length}</small></h3><div class="list">${rumors}</div></div>`;
+    this.onModal?.('journal');
   }
 
   // Announce an event across the top of the screen. tone: 'gold' | 'red' | 'blue'
@@ -170,6 +234,8 @@ export class CombatHUD {
     if (this.hitT > 0 && (this.hitT -= dt) <= 0) el.hit.className = '';
     this.scareT = Math.max(0, this.scareT - dt);
     this.bannerT = Math.max(0, this.bannerT - dt);
+    this.subT = Math.max(0, this.subT - dt);
+    el.subtitle.style.opacity = Math.min(1, this.subT / 0.6).toFixed(2);
     el.event.style.opacity = Math.min(1, this.bannerT / 0.6, (5.5 - this.bannerT) / 0.25).toFixed(2);
     this.fadeT = Math.max(0, this.fadeT - dt);
     el.fade.style.opacity = Math.min(1, this.fadeT / (this.fadeMax * 0.6)).toFixed(2);

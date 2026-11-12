@@ -136,6 +136,7 @@ export class Events {
     // fixed events: blood moon is decided at dusk, the bell at midnight
     if (night && !this._wasNight && this.rng() < 0.3) this.start('blood');
     if (!night && this._wasNight) this.blood = false;
+    if (this.forceBlood) this.blood = true; // the 'burn' ending: every night from now on
     this._wasNight = night;
     if (this._lastHour > 20 && sky.hour < 4 && night) this.start('midnight');
     this._lastHour = sky.hour;
