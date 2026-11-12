@@ -31,8 +31,9 @@ function swingYaw(s) {
 
 function makeCharacter() {
   const mat = (c, r = 0.85) => new THREE.MeshStandardMaterial({ color: c, roughness: r });
-  const jacket = mat(0x5a6340), pants = mat(0x3b3d35), skin = mat(0xd2a47e, 0.7), boots = mat(0x222018),
-    vest = mat(0x4a4a3c), helmet = mat(0x4b5137, 0.6), glove = mat(0x2a2a26), packM = mat(0x3f4430);
+  // a student out after midnight: hoodie, jeans, trainers, school backpack
+  const jacket = mat(0x33506e), pants = mat(0x27303f), skin = mat(0xd2a47e, 0.7), boots = mat(0xc9c9c4),
+    vest = mat(0x2c4660), helmet = mat(0x14110e, 0.75), glove = skin, packM = mat(0x7a2f2f);
   const shadow = (o) => { o.castShadow = true; return o; };
   const box = (w, h, d, m) => shadow(new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m));
   const ball = (r, m) => shadow(new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), m));
