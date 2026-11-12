@@ -33,9 +33,6 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0d1014; col
 #stats { position: absolute; left: 20px; bottom: 16px; font-size: 12px; line-height: 1.6; opacity: .85; font-family: Consolas, monospace; }
 #minimap { position: absolute; right: 16px; bottom: 16px; width: 220px; height: 220px;
   border: 2px solid rgba(255,255,255,.35); border-radius: 4px; background: #222; }
-#crosshair { position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px 0 0 -2px;
-  background: #fff; border-radius: 50%; box-shadow: 0 0 2px #000; }
-#hint { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); font-size: 12px; opacity: .6; }
 
 #bigmap { position: fixed; inset: 0; z-index: 15; display: flex; align-items: center; justify-content: center;
   background: rgba(0,0,0,.6); pointer-events: none; }
@@ -45,5 +42,87 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0d1014; col
 @media (max-width: 700px) {
   #minimap { width: 140px; height: 140px; }
   #location { font-size: 16px; top: 56px; left: 16px; }
-  #hint { display: none; }
+}
+
+/* ---------- v0.2 combat HUD ---------- */
+#score { position: absolute; top: 46px; left: 20px; font-size: 13px; opacity: .85; }
+
+#crosshair { position: absolute; left: 50%; top: 50%; --gap: 8px; }
+#crosshair i { position: absolute; background: #fff; box-shadow: 0 0 2px rgba(0,0,0,.9); }
+#crosshair .t, #crosshair .b { width: 2px; height: 9px; left: -1px; }
+#crosshair .l, #crosshair .r { width: 9px; height: 2px; top: -1px; }
+#crosshair .t { top: calc(-9px - var(--gap)); }
+#crosshair .b { top: var(--gap); }
+#crosshair .l { left: calc(-9px - var(--gap)); }
+#crosshair .r { left: var(--gap); }
+#crosshair .dot { width: 2px; height: 2px; left: -1px; top: -1px; }
+#crosshair.unarmed i { display: none; }
+#crosshair.unarmed .dot { display: block; width: 4px; height: 4px; left: -2px; top: -2px; border-radius: 50%; }
+
+#hitmarker { position: absolute; left: 50%; top: 50%; opacity: 0; }
+#hitmarker i { position: absolute; width: 12px; height: 2px; background: #fff; box-shadow: 0 0 2px #000; transform-origin: 0 50%; }
+#hitmarker i:nth-child(1) { transform: rotate(45deg) translateX(8px); }
+#hitmarker i:nth-child(2) { transform: rotate(135deg) translateX(8px); }
+#hitmarker i:nth-child(3) { transform: rotate(225deg) translateX(8px); }
+#hitmarker i:nth-child(4) { transform: rotate(315deg) translateX(8px); }
+#hitmarker.head i { background: #ff4a3d; }
+#hitmarker.kill i { background: #ff4a3d; width: 16px; height: 3px; }
+
+#prompt { position: absolute; left: 50%; top: 62%; transform: translateX(-50%); font-size: 15px; white-space: nowrap; }
+#prompt b { display: inline-block; min-width: 22px; margin-right: 8px; padding: 1px 6px; text-align: center; color: #111;
+  background: #f2d27a; border-radius: 3px; text-shadow: none; }
+
+#cast { position: absolute; left: 50%; top: 70%; transform: translateX(-50%); width: 220px; text-align: center; font-size: 13px; }
+#cast .bar { margin-top: 5px; height: 5px; background: rgba(0,0,0,.5); border-radius: 3px; overflow: hidden; }
+#cast-fill { display: block; height: 100%; width: 0; background: #f2d27a; }
+
+#feed { position: absolute; top: 64px; right: 18px; text-align: right; font-size: 13px; line-height: 1.7; }
+#feed div { padding: 0 8px; background: rgba(0,0,0,.28); border-radius: 3px; margin-bottom: 3px; display: table; margin-left: auto; }
+
+#vitals { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); width: min(380px, 60vw); text-align: center; }
+#weapon-line { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; font-size: 14px; }
+#weapon-name { opacity: .9; letter-spacing: 1px; }
+#ammo { font-family: Consolas, monospace; font-size: 15px; }
+#ammo b { font-size: 26px; color: #fff; }
+#ammo b.low { color: #ff6a5a; }
+#heal-line { margin-bottom: 5px; font-size: 12px; opacity: .85; text-align: left; min-height: 16px; }
+#heal-line span { margin-right: 12px; }
+#heal-line span.none { opacity: .35; }
+#heal-line b { color: #f2d27a; margin-right: 3px; }
+#hpbar, #boostbar { background: rgba(0,0,0,.5); border: 1px solid rgba(255,255,255,.35); overflow: hidden; }
+#hpbar { height: 14px; border-radius: 2px; }
+#boostbar { height: 4px; margin-bottom: 3px; border-radius: 2px; border-color: rgba(255,255,255,.2); }
+#hp-fill { display: block; height: 100%; width: 100%; background: #f1f1f1; transition: width .15s; }
+#hp-fill.mid { background: #f2d27a; }
+#hp-fill.low { background: #e5463a; }
+#boost-fill { display: block; height: 100%; width: 0; background: #f2a53a; }
+
+#slots { position: absolute; right: 16px; bottom: 250px; width: 220px; font-size: 13px; }
+#slots div { display: flex; justify-content: space-between; padding: 4px 8px; margin-top: 3px; background: rgba(0,0,0,.3);
+  border-left: 3px solid transparent; border-radius: 2px; opacity: .7; }
+#slots div.on { opacity: 1; border-left-color: #f2d27a; background: rgba(0,0,0,.5); }
+#slots div.empty { opacity: .35; }
+#slots b { color: #f2d27a; margin-right: 8px; }
+#slots span.n { font-family: Consolas, monospace; }
+
+#inventory { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(420px, 90vw); padding: 18px 22px;
+  background: rgba(14,18,22,.88); border: 1px solid rgba(255,255,255,.15); border-radius: 8px; font-size: 14px; text-shadow: none; }
+#inventory h3 { margin: 0 0 10px; font-size: 16px; letter-spacing: 3px; color: #f2d27a; }
+#inventory h4 { margin: 14px 0 6px; font-size: 12px; letter-spacing: 2px; opacity: .55; font-weight: 400; }
+#inventory .row { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,.06); }
+#inventory .row span:last-child { font-family: Consolas, monospace; }
+#inventory .row.none { opacity: .35; }
+
+#scope { position: fixed; inset: 0; z-index: 9; pointer-events: none;
+  background: radial-gradient(circle at center, transparent 0, transparent 41vh, rgba(0,0,0,.6) 41.6vh, #000 43vh); }
+#scope::before, #scope::after { content: ""; position: absolute; background: rgba(0,0,0,.85); }
+#scope::before { left: 0; right: 0; top: 50%; height: 1px; }
+#scope::after { top: 0; bottom: 0; left: 50%; width: 1px; }
+
+#hurt { position: fixed; inset: 0; z-index: 9; pointer-events: none; opacity: 0;
+  box-shadow: inset 0 0 160px 40px rgba(190,0,0,.75); }
+
+@media (max-width: 700px) {
+  #slots { bottom: 170px; width: 150px; }
+  #feed { display: none; }
 }

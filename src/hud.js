@@ -1,4 +1,5 @@
 import { Colliders } from './world/colliders.js';
+import { WEAPONS, AMMO, HEALS, ITEMS } from './game/items.js';
 
 const DIRS = ['北', '東北', '東', '東南', '南', '西南', '西', '西北'];
 const LANDMARKS = ['路思義教堂', '圖書館', '銘賢堂', '體育館', '東海放牧場', '相思林', '文理大道', '乳品小棧',
@@ -22,6 +23,8 @@ export class HUD {
     this.t = 0; this.frames = 0; this.fps = 0; this.fpsT = 0;
     this.places = this._places();
     this.lastLoc = '';
+    this.targets = null;
+    this._initCombat();
   }
 
   _buildCompass() {
@@ -69,6 +72,7 @@ export class HUD {
     this.t += dt;
     if (this.t > 0.25) {
       this.t = 0;
+      const cw = this.strip.parentElement.clientWidth; if (cw) this.compassW = cw;   // may have been measured while hidden
       const name = this.locate(player.pos.x, player.pos.z);
       if (name !== this.lastLoc) { this.loc.textContent = name; this.lastLoc = name; }
       this.stats.innerHTML = `海拔 ${player.pos.y.toFixed(1)} m<br>${this.fps} FPS`;
@@ -122,7 +126,112 @@ export class HUD {
       ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillText(p.name, x + 1, y + 1);
       ctx.fillStyle = '#fff'; ctx.fillText(p.name, x, y);
     }
+    if (this.targets) {   // practice targets
+      for (const t of this.targets.list) {
+        const [x, y] = this._toPx(t.x, t.z, s);
+        ctx.fillStyle = t.down ? 'rgba(255,255,255,.35)' : '#ff7a2a';
+        ctx.beginPath(); ctx.arc(x, y, 3, 0, 6.3); ctx.fill();
+      }
+    }
     const [px, py] = this._toPx(player.pos.x, player.pos.z, s);
     this._arrow(ctx, px, py, player.yaw, 9);
+  }
+
+  // ---------------------------------------------------------------- v0.2 combat HUD
+  _initCombat() {
+    const $ = (id) => document.getElementById(id);
+    this.c = {
+      cross: $('crosshair'), hit: $('hitmarker'), prompt: $('prompt'), cast: $('cast'), castLabel: $('cast-label'), castFill: $('cast-fill'),
+      feed: $('feed'), slots: $('slots'), wname: $('weapon-name'), ammo: $('ammo'), heal: $('heal-line'), hp: $('hp-fill'), boost: $('boost-fill'),
+      inv: $('inventory'), scope: $('scope'), hurt: $('hurt'), score: $('score'),
+    };
+    this.last = {};
+    this.hurtT = 0;
+  }
+
+  // Only touch the DOM when a value actually changed.
+  _set(key, value, apply) { if (this.last[key] !== value) { this.last[key] = value; apply(value); } }
+
+  updateCombat(dt, combat, player, rig, input) {
+    const c = this.c, def = combat.def, w = combat.weapon;
+
+    // crosshair: the gap shows the real cone of fire
+    const gap = def ? Math.max(3, Math.round(Math.tan(combat.spread) / Math.tan(rig.fov * Math.PI / 360) * innerHeight / 2)) : 0;
+    this._set('gap', gap, (v) => c.cross.style.setProperty('--gap', v + 'px'));
+    this._set('crossMode', rig.scoped ? 'scope' : !def ? 'unarmed' : (player.sprinting || combat.swap > 0 || combat.reload) ? 'busy' : 'armed', (v) => {
+      c.cross.className = v === 'unarmed' ? 'unarmed' : '';
+      c.cross.style.display = v === 'scope' ? 'none' : '';
+      c.cross.style.opacity = v === 'busy' ? 0.35 : 1;
+      c.scope.classList.toggle('hidden', v !== 'scope');
+    });
+    this._set('hitO', Math.round(Math.min(1, combat.hitT / 0.12) * 10) / 10, (v) => { c.hit.style.opacity = v; });
+    this._set('hitC', combat.hitKill ? 'kill' : combat.hitHead ? 'head' : '', (v) => { c.hit.className = v; });
+
+    // weapon + ammo
+    const name = !w ? '徒手' : combat.reload ? `${def.name} · 換彈中…` : def.name;
+    this._set('wname', name, (v) => { c.wname.textContent = v; });
+    const ammo = w ? `${w.loaded}|${combat.ammo[def.ammo]}` : '';
+    this._set('ammo', ammo, () => {
+      c.ammo.innerHTML = w ? `<b class="${w.loaded <= def.mag * 0.25 ? 'low' : ''}">${w.loaded}</b> / ${combat.ammo[def.ammo]}` : '';
+    });
+
+    // weapon slots
+    const slotSig = combat.slots.map((s, i) => (s ? s.id + ':' + s.loaded : '-') + (i === combat.cur ? '*' : '')).join('|');
+    this._set('slots', slotSig, () => {
+      c.slots.innerHTML = combat.slots.map((s, i) => s
+        ? `<div class="${i === combat.cur ? 'on' : ''}"><span><b>${i + 1}</b>${WEAPONS[s.id].name}</span><span class="n">${s.loaded}</span></div>`
+        : `<div class="empty"><span><b>${i + 1}</b>${i === 2 ? '副武器' : '主武器'}</span><span></span></div>`).join('');
+    });
+
+    // healing items
+    const h = combat.heals;
+    this._set('heals', `${h.bandage}|${h.medkit}|${h.drink}`, () => {
+      c.heal.innerHTML = Object.keys(HEALS).map((id, i) =>
+        `<span class="${h[id] ? '' : 'none'}"><b>${i + 4}</b>${HEALS[id].name} ×${h[id]}</span>`).join('');
+    });
+
+    // health
+    const hp = Math.ceil(player.hp);
+    this._set('hp', hp, (v) => { c.hp.style.width = v + '%'; c.hp.className = v <= 25 ? 'low' : v <= 50 ? 'mid' : ''; });
+    this._set('boost', Math.round(player.boost), (v) => { c.boost.style.width = v + '%'; });
+    this.hurtT = Math.max(0, this.hurtT - dt);
+    const hurt = Math.min(1, this.hurtT * 2 + (player.hp < 30 ? (30 - player.hp) / 60 : 0));
+    this._set('hurt', Math.round(hurt * 20) / 20, (v) => { c.hurt.style.opacity = v; });
+
+    // pick-up prompt
+    const it = combat.nearby;
+    const prompt = it ? `${ITEMS[it.id].name}${ITEMS[it.id].kind !== 'weapon' && it.count > 1 ? ' ×' + it.count : ''}` : '';
+    this._set('prompt', prompt, (v) => { c.prompt.innerHTML = v ? `<b>F</b>撿起 ${v}` : ''; });
+
+    // heal progress
+    const cast = combat.cast;
+    this._set('casting', !!cast, (v) => c.cast.classList.toggle('hidden', !v));
+    if (cast) {
+      this._set('castLabel', `使用${HEALS[cast.id].name} ${(cast.total - cast.t).toFixed(1)} 秒`, (v) => { c.castLabel.textContent = v; });
+      c.castFill.style.width = (cast.t / cast.total * 100).toFixed(1) + '%';
+    }
+
+    // message feed + score
+    this._set('feed', combat.feed.map((f) => f.text).join('\n'), () => {
+      c.feed.innerHTML = combat.feed.map((f) => `<div>${f.text}</div>`).join('');
+    });
+    const acc = combat.shots ? Math.round(combat.hits / combat.shots * 100) : 0;
+    this._set('score', `${this.targets ? this.targets.downed : 0}|${acc}`, () => {
+      c.score.textContent = `擊倒靶子 ${this.targets ? this.targets.downed : 0} · 命中率 ${acc}%`;
+    });
+
+    // backpack (hold Tab)
+    const open = input.down('Tab');
+    this._set('inv', open, (v) => c.inv.classList.toggle('hidden', !v));
+    if (open) {
+      const sig = slotSig + JSON.stringify(combat.ammo) + JSON.stringify(h);
+      this._set('invBody', sig, () => {
+        const row = (a, b, none) => `<div class="row${none ? ' none' : ''}"><span>${a}</span><span>${b}</span></div>`;
+        c.inv.innerHTML = '<h3>背包</h3><h4>武器</h4>' +
+          combat.slots.map((s, i) => s ? row(`${i + 1}　${WEAPONS[s.id].name}`, `${s.loaded} / ${WEAPONS[s.id].mag}`) : row(`${i + 1}　（空）`, '', true)).join('') +
+          '<h4>彈藥</h4>' + Object.keys(AMMO).map((a) => row(AMMO[a].name, combat.ammo[a], !combat.ammo[a])).join('') +
+          '<h4>補給</h4>' + Object.keys(HEALS).map((id, i) => row(`${i + 4}　${HEALS[id].name}`, '×' + h[id], !h[id])).join('');
+      });
+    }
   }
 }

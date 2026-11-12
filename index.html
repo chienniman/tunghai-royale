@@ -16,14 +16,30 @@
 </head>
 <body>
   <div id="game"></div>
+  <div id="scope" class="hidden"></div>
+  <div id="hurt"></div>
 
   <div id="hud" class="hidden">
     <div id="compass"><div id="compass-strip"></div><div id="compass-marker"></div><div id="compass-deg">0</div></div>
     <div id="location"></div>
+    <div id="score"></div>
     <div id="stats"></div>
     <canvas id="minimap" width="220" height="220"></canvas>
-    <div id="crosshair"></div>
-    <div id="hint">WASD 移動 · Shift 衝刺 · 空白鍵 跳 · C 蹲 · M 地圖 · Esc 暫停</div>
+
+    <div id="crosshair"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i><i class="dot"></i></div>
+    <div id="hitmarker"><i></i><i></i><i></i><i></i></div>
+    <div id="prompt"></div>
+    <div id="cast" class="hidden"><div id="cast-label"></div><div class="bar"><i id="cast-fill"></i></div></div>
+    <div id="feed"></div>
+
+    <div id="slots"></div>
+    <div id="vitals">
+      <div id="weapon-line"><span id="weapon-name"></span><span id="ammo"></span></div>
+      <div id="heal-line"></div>
+      <div id="boostbar"><i id="boost-fill"></i></div>
+      <div id="hpbar"><i id="hp-fill"></i></div>
+    </div>
+    <div id="inventory" class="hidden"></div>
   </div>
 
   <div id="bigmap" class="hidden"><canvas id="bigmap-canvas"></canvas><div class="bigmap-title">東海大學 · 按 M 關閉</div></div>
@@ -31,13 +47,18 @@
   <div id="overlay">
     <div class="panel">
       <h1>東海大逃殺</h1>
-      <div class="sub">TUNGHAI ROYALE · v0.1 地圖預覽</div>
+      <div class="sub">TUNGHAI ROYALE · v0.2 武器與物資</div>
       <div id="loading-text">載入中…</div>
       <button id="start-btn" class="hidden">點擊開始</button>
       <div class="controls">
         <div><b>WASD</b> 移動</div><div><b>滑鼠</b> 轉視角</div>
         <div><b>Shift</b> 衝刺</div><div><b>空白鍵</b> 跳</div>
         <div><b>C</b> 蹲下</div><div><b>M</b> 大地圖</div>
+        <div><b>左鍵</b> 射擊</div><div><b>右鍵</b> 瞄準</div>
+        <div><b>F</b> 撿東西</div><div><b>R</b> 換彈</div>
+        <div><b>1 2 3</b> 換武器</div><div><b>X</b> 收槍</div>
+        <div><b>4 5 6</b> 補血</div><div><b>G</b> 丟武器</div>
+        <div><b>Tab</b> 背包</div><div><b>Esc</b> 暫停</div>
       </div>
       <div class="credit">地圖資料 © OpenStreetMap 貢獻者（ODbL）· 地形高程 SRTM 30m（NASA / USGS）</div>
     </div>

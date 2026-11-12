@@ -97,13 +97,41 @@ export class Colliders {
     }
   }
 
-  // True if point (x,y,z) is inside a solid shape (used to keep the camera out of walls).
-  blocked(x, y, z) {
-    for (const s of this.query(x, z, x, z)) {
+  // The solid shape containing point (x,y,z), or null.
+  hit(x, y, z) {
+    const a = this.grid.get(Math.floor(x / this.cell) + ',' + Math.floor(z / this.cell));
+    if (!a) return null;
+    for (const s of a) {
+      if (x < s.minX || x > s.maxX || z < s.minZ || z > s.maxZ) continue;
       if (s.top !== undefined && y > s.top) continue;
-      if (s.kind === 'circle') { if ((x - s.x) ** 2 + (z - s.z) ** 2 < s.r * s.r) return true; }
-      else if (Colliders.pointInPoly(s.pts, x, z)) return true;
+      if (s.kind === 'circle') { if ((x - s.x) ** 2 + (z - s.z) ** 2 < s.r * s.r) return s; }
+      else if (Colliders.pointInPoly(s.pts, x, z)) return s;
     }
-    return false;
+    return null;
+  }
+
+  // True if point (x,y,z) is inside a solid shape (used to keep the camera out of walls).
+  blocked(x, y, z) { return this.hit(x, y, z) !== null; }
+
+  // Horizontal outward normal of shape `s` at the boundary point nearest (x,z); (tx,tz) is a point known to be outside.
+  static surfaceNormal(s, x, z, tx, tz, out) {
+    if (s.kind === 'circle') {
+      const dx = x - s.x, dz = z - s.z, d = Math.hypot(dx, dz) || 1;
+      out.x = dx / d; out.z = dz / d; return out;
+    }
+    const pts = s.pts; let best = Infinity;
+    for (let i = 0, j = pts.length - 2; i < pts.length; j = i, i += 2) {
+      const ax = pts[j], az = pts[j + 1], ex = pts[i] - ax, ez = pts[i + 1] - az;
+      const len2 = ex * ex + ez * ez || 1e-9;
+      let t = ((x - ax) * ex + (z - az) * ez) / len2; t = Math.max(0, Math.min(1, t));
+      const d2 = (x - ax - ex * t) ** 2 + (z - az - ez * t) ** 2;
+      if (d2 < best) {
+        best = d2;
+        const l = Math.sqrt(len2); let nx = ez / l, nz = -ex / l;
+        if ((tx - ax) * nx + (tz - az) * nz < 0) { nx = -nx; nz = -nz; }
+        out.x = nx; out.z = nz;
+      }
+    }
+    return out;
   }
 }

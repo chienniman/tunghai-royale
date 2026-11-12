@@ -5,9 +5,16 @@ import { buildWorld } from './world/world.js';
 import { Player } from './player.js';
 import { Input } from './input.js';
 import { HUD } from './hud.js';
+import { CameraRig } from './camera.js';
+import { Sfx } from './audio.js';
+import { Loot } from './game/loot.js';
+import { Targets } from './game/targets.js';
+import { Effects } from './game/effects.js';
+import { Combat } from './game/combat.js';
 
 const $ = (id) => document.getElementById(id);
 const setLoading = (t) => { $('loading-text').textContent = t; };
+const tick = () => new Promise((r) => setTimeout(r, 0));
 
 async function loadJSON(url) {
   const r = await fetch(url);
@@ -54,41 +61,49 @@ async function main() {
   sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.04;
   scene.add(sun, sun.target);
 
-  setLoading('計算地形…'); await new Promise((r) => setTimeout(r, 0));
+  setLoading('計算地形…'); await tick();
   const terrain = new Terrain(elev, map.origin);
   const world = await buildWorld(scene, terrain, map, setLoading);
 
+  setLoading('擺放物資…'); await tick();
+  const loot = new Loot(scene, terrain, world).generate();
+  const targets = new Targets(scene, terrain, world);
+  const fx = new Effects(scene);
+  const sfx = new Sfx();
+
   const input = new Input(renderer.domElement);
   const player = new Player(scene, terrain, world.colliders);
-  // Spawn in front of Luce Chapel, looking at it.
+  const rig = new CameraRig(camera, terrain, world.colliders);
+  const combat = new Combat({ camera, rig, player, terrain, world, loot, targets, fx, sfx, input });
+
+  // Spawn in front of Luce Chapel, looking at it, with a starter kit and a small firing range on the lawn.
+  const spawn = { x: 0, z: 0, yaw: 0 };
   if (world.chapel) {
     const { center, axis, length } = world.chapel;
-    const sx = center.x - axis.x * (length / 2 + 28), sz = center.z - axis.z * (length / 2 + 28);
-    player.spawn(sx, sz, Math.atan2(-(center.x - sx), -(center.z - sz)));
-  } else player.spawn(0, 0, 0);
+    spawn.x = center.x - axis.x * (length / 2 + 28); spawn.z = center.z - axis.z * (length / 2 + 28);
+    spawn.yaw = Math.atan2(-(center.x - spawn.x), -(center.z - spawn.z));
+  }
+  player.spawn(spawn.x, spawn.z, spawn.yaw);
+  {
+    const fx0 = -Math.sin(spawn.yaw), fz0 = -Math.cos(spawn.yaw), rx = Math.cos(spawn.yaw), rz = -Math.sin(spawn.yaw);
+    const at = (f, r) => [player.pos.x + fx0 * f + rx * r, player.pos.z + fz0 * f + rz * r];
+    loot.spot(...at(3.5, -1.2), ['ar', 'ammo_556', 'ammo_556', 'ammo_556']);
+    loot.spot(...at(3.5, 1.4), ['pistol', 'ammo_9mm', 'bandage']);
+    loot.spot(...at(5.5, 0.2), ['medkit', 'drink']);
+    // targets off to both sides (the chapel is straight ahead), facing the spawn point
+    for (const [f, r] of [[6, 16], [2, 28], [10, 42], [-4, 60], [6, -18], [0, -32], [12, -48], [-6, -70]]) {
+      const [x, z] = at(f, r);
+      targets.add(x, z, Math.atan2(player.pos.x - x, player.pos.z - z));
+    }
+  }
+  targets.scatter(70);
 
   const hud = new HUD(world, terrain);
-
-  // Third-person camera
-  const camPos = new THREE.Vector3(), look = new THREE.Vector3(), target = new THREE.Vector3();
-  let camDist = 3.4;
-  function updateCamera(dt) {
-    const cp = Math.cos(player.pitch);
-    look.set(-Math.sin(player.yaw) * cp, Math.sin(player.pitch), -Math.cos(player.yaw) * cp);
-    const right = new THREE.Vector3(Math.cos(player.yaw), 0, -Math.sin(player.yaw));
-    target.set(player.pos.x, player.headY + 0.1, player.pos.z).addScaledVector(right, 0.55);
-    // pull the camera in if a wall/tree is between it and the player
-    let want = 3.4;
-    for (let d = 0.6; d <= 3.4; d += 0.2) {
-      const x = target.x - look.x * d, y = target.y - look.y * d, z = target.z - look.z * d;
-      if (world.colliders.blocked(x, y, z) || y < terrain.heightAt(x, z) + 0.25) { want = Math.max(0.6, d - 0.3); break; }
-    }
-    camDist += (want - camDist) * (want < camDist ? 1 : 1 - Math.exp(-6 * dt));
-    camPos.copy(target).addScaledVector(look, -camDist);
-    camPos.y = Math.max(camPos.y, terrain.heightAt(camPos.x, camPos.z) + 0.25);
-    camera.position.copy(camPos);
-    camera.lookAt(camPos.x + look.x, camPos.y + look.y, camPos.z + look.z);
-  }
+  hud.targets = targets;
+  player.onStep = (run) => sfx.step(run);
+  player.onHurt = () => { hud.hurtT = 0.5; sfx.hurt(); };
+  let respawnT = 0;
+  player.onDeath = () => { respawnT = 3; combat.say('你倒下了…'); };
 
   function updateSun() {
     const p = player.pos;
@@ -101,34 +116,55 @@ async function main() {
 
   // UI flow
   const overlay = $('overlay'), startBtn = $('start-btn');
-  setLoading(`完成：${map.buildings.length} 棟建築、${world.treeCount} 棵樹`);
+  setLoading(`完成：${map.buildings.length} 棟建築、${world.treeCount} 棵樹、${loot.count} 件物資`);
   startBtn.classList.remove('hidden');
   startBtn.textContent = '點擊開始';
-  startBtn.onclick = () => input.lock();
+  startBtn.onclick = () => { sfx.resume(); input.lock(); };
   input.onLockChange = (locked) => {
     overlay.classList.toggle('hidden', locked);
     $('hud').classList.toggle('hidden', !locked);
     if (!locked) { setLoading('已暫停'); startBtn.textContent = '繼續'; }
   };
   addEventListener('keydown', (e) => { if (e.code === 'KeyM' && input.locked) hud.toggleBig(); });
-  addEventListener('resize', () => {
-    camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
-    renderer.setSize(innerWidth, innerHeight);
-  });
+  // Keep the canvas matched to the window (also covers a page that was loaded in a background tab at size 0).
+  let vw = 0, vh = 0;
+  function fit() {
+    if (innerWidth === vw && innerHeight === vh) return;
+    vw = innerWidth; vh = innerHeight;
+    if (!vw || !vh) return;
+    camera.aspect = vw / vh; camera.updateProjectionMatrix();
+    renderer.setSize(vw, vh);
+  }
 
-  const clock = new THREE.Clock();
-  window.game = { scene, camera, renderer, player, world, terrain, input, hud };
-  renderer.setAnimationLoop(() => {
-    const raw = clock.getDelta();
-    const dt = Math.min(raw, 0.05);
-    if (input.locked) player.update(dt, input);
-    else input.consumeMouse();
-    player.animate(0, false);
-    updateCamera(dt);
+  function frame(dt, raw) {
+    fit();
+    const live = input.locked;
+    if (live) {
+      player.update(dt, input);
+      if (!player.alive && (respawnT -= dt) <= 0) {
+        player.spawn(spawn.x, spawn.z, spawn.yaw);
+        combat.say('已在路思義教堂前重生');
+      }
+    } else { input.consumeMouse(); player.animate(0); }
+    rig.update(dt, player, combat.view);
+    if (live) combat.update(dt);
+    loot.update(player.pos);
+    targets.update(dt);
+    fx.update(dt, camera);
     updateSun();
     hud.update(dt, player, raw);
+    hud.updateCombat(dt, combat, player, rig, input);
     input.endFrame();
     renderer.render(scene, camera);
+  }
+
+  const clock = new THREE.Clock();
+  // game.step(dt) advances one frame by hand (used for automated testing).
+  window.game = { scene, camera, renderer, player, world, terrain, input, hud, rig, combat, loot, targets, fx, sfx, step: (dt = 1 / 60) => frame(dt, dt) };
+  renderer.setAnimationLoop(() => {
+    if (window.game.freeze) { clock.getDelta(); renderer.render(scene, camera); return; }   // debug: hold the simulation still
+    const raw = clock.getDelta();
+    frame(Math.min(raw, 0.05), raw);
   });
 }
 

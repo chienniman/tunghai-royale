@@ -104,7 +104,7 @@ export function buildChapel(b, terrain, colliders) {
     const wx = c.x + la * ax - lb * az, wz = c.z + la * az + lb * ax;
     pts.push(wx, wz);
   }
-  colliders.addPolygon(pts, group.position.y + H, { name: '路思義教堂' });
+  colliders.addPolygon(pts, group.position.y + H, { name: '路思義教堂', noDecal: true });
 
   return { group, center: c, axis: { x: ax, z: az }, length: L, width: W, baseY: group.position.y };
 }
