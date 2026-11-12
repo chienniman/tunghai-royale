@@ -42,6 +42,9 @@ class GeoBuilder {
   }
 }
 
+// Driven from the main loop: uNight 0..1 turns the lit windows on, uTime animates the flicker.
+export const buildingUniforms = { uNight: { value: 1 }, uTime: { value: 0 } };
+
 function makeWallTexture() {
   const S = 256; const c = document.createElement('canvas'); c.width = c.height = S;
   const ctx = c.getContext('2d');
@@ -173,11 +176,23 @@ export function buildBuildings(map, terrain, colliders) {
   const wallTex = makeWallTexture();
   const wallMat = new THREE.MeshStandardMaterial({ map: wallTex, vertexColors: true, roughness: 0.82 });
   wallMat.onBeforeCompile = (shader) => {
-    shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>', `
+    shader.uniforms.uNight = buildingUniforms.uNight;
+    shader.uniforms.uTime = buildingUniforms.uTime;
+    shader.fragmentShader = 'uniform float uNight, uTime;\n' + shader.fragmentShader
+      .replace('#include <color_fragment>', `
+      float glass = step(texture2D(map, vMapUv).a, 0.75);
       #ifdef USE_COLOR
-        float glass = step(texture2D(map, vMapUv).a, 0.75);
         diffuseColor.rgb *= mix(vColor, vec3(0.75), glass);
         diffuseColor.a = 1.0;
+      #endif`)
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+      #ifdef USE_COLOR
+        // at night a few windows are lit; one in a while flickers
+        vec2 cell = floor(vMapUv);
+        float wh = fract(sin(dot(cell + floor(vColor.rg * 255.0), vec2(12.9898, 78.233))) * 43758.5453);
+        float lit = step(0.955, wh);
+        float fl = step(0.992, wh) * step(0.6, fract(sin(floor(uTime * 9.0) * 12.9898 + wh * 50.0) * 43758.5453));
+        totalEmissiveRadiance += vec3(1.0, 0.76, 0.40) * glass * lit * (1.0 - fl) * uNight * 0.85;
       #endif`);
   };
   const flatMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92, side: THREE.DoubleSide });

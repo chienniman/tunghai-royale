@@ -13,6 +13,7 @@ export class CameraRig {
     this.fov = BASE_FOV;
     this.shake = 0;
     this.scoped = false;
+    this.firstPerson = false;
     this.sprintFov = 0;
   }
 
@@ -33,8 +34,9 @@ export class CameraRig {
     // keep the same on-screen turn rate when zoomed
     player.sens = Math.tan(fov * Math.PI / 360) / Math.tan(BASE_FOV * Math.PI / 360);
 
-    player.rig.root.visible = !this.scoped;
-    if (this.scoped) {
+    const fp = this.firstPerson || this.scoped;
+    player.rig.root.visible = !fp;
+    if (fp) {
       this.dist = 0;
       this.pos.set(player.pos.x, player.headY + 0.04, player.pos.z).addScaledVector(look, 0.15);
     } else {

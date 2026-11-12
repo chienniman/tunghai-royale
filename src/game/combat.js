@@ -157,7 +157,7 @@ export class Combat {
         this.equip(have[((at < 0 ? 0 : at + Math.sign(wheel)) + have.length) % have.length]);
       }
     }
-    if (input.hit('KeyF')) this.pickup();
+    if (input.hit('KeyE')) this.pickup();
     if (input.hit('KeyG') && this.cur >= 0) { this.say(`丟下 ${this.def.name}`); this.dropSlot(this.cur); }
     if (input.hit('KeyR')) this.startReload();
     for (const id in HEALS) if (input.hit(HEALS[id].key)) this.useHeal(id);

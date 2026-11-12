@@ -256,7 +256,7 @@ export class HUD {
     // pick-up prompt
     const it = combat.nearby;
     const prompt = it ? `${ITEMS[it.id].name}${ITEMS[it.id].kind !== 'weapon' && it.count > 1 ? ' ×' + it.count : ''}` : '';
-    this._set('prompt', prompt, (v) => { c.prompt.innerHTML = v ? `<b>F</b>撿起 ${v}` : ''; });
+    this._set('prompt', prompt, (v) => { c.prompt.innerHTML = v ? `<b>E</b>撿起 ${v}` : ''; });
 
     // heal progress
     const cast = combat.cast;

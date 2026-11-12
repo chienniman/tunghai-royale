@@ -4,6 +4,7 @@ import { paintGround, makeDetailTexture, makeGroundMaterial } from './ground.js'
 import { buildBuildings } from './buildings.js';
 import { buildChapel } from './chapel.js';
 import { plantTrees } from './trees.js';
+import { buildLamps } from './lamps.js';
 
 export async function buildWorld(scene, terrain, map, progress = () => {}) {
   const tick = () => new Promise((r) => setTimeout(r, 0));
@@ -36,5 +37,8 @@ export async function buildWorld(scene, terrain, map, progress = () => {}) {
     return cd.data[(pz * cd.width + px) * 4 + 1] > 128;
   };
 
-  return { colliders, groundCanvas: ground.canvas, named: bld.named, chapel, map, treeCount: trees.count, inCampus };
+  progress('架設路燈…'); await tick();
+  const lamps = buildLamps(scene, terrain, map, { colliders, inCampus });
+
+  return { colliders, groundCanvas: ground.canvas, named: bld.named, chapel, map, treeCount: trees.count, inCampus, lamps };
 }
