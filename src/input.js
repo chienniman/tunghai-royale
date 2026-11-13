@@ -1,6 +1,6 @@
 // Keyboard + pointer-lock mouse input, plus a touch mode (phones / tablets) where the
 // on-screen controls in touch.js write into the same state and there is no pointer lock.
-const GAME_KEYS = ['Space', 'KeyW', 'KeyA', 'KeyS', 'KeyD', 'Tab', 'KeyF', 'KeyR', 'Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6', 'Digit7', 'KeyE', 'KeyJ'];
+const GAME_KEYS = ['Space', 'KeyW', 'KeyA', 'KeyS', 'KeyD', 'Tab', 'KeyF', 'KeyR', 'Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6', 'Digit7', 'Digit8', 'KeyE', 'KeyJ'];
 
 export class Input {
   constructor(element, { touch = false } = {}) {

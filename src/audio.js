@@ -99,6 +99,9 @@ export class Sfx {
   wisp() { this._run((c, t) => { const { o } = this._tone(t, 0.9, 980, 520, 0.09, 'sine'); o.frequency.setValueAtTime(980, t); }); }
   ghostDie() { this._run((c, t) => { this._tone(t, 0.6, 700, 90, 0.2, 'sine'); this._noise(t, 0.5, 2400, 0.15, 'highpass'); }); }
 
+  buzz() { this._run((c, t) => { for (let i = 0; i < 2; i++) this._tone(t + i * 0.22, 0.16, 150, 140, 0.16, 'square'); }); }
+  ring(v = 1) { this._run((c, t) => { for (let i = 0; i < 2; i++) for (let k = 0; k < 7; k++) this._tone(t + i * 0.9 + k * 0.055, 0.045, 1320, 1280, 0.09 * v, 'square'); }); }
+  step(v = 1) { this._run((c, t) => { this._noise(t, 0.05, 520 + Math.random() * 260, 0.07 * v, 'bandpass', 1.2); }); }
   bell(n = 1) {
     this._run((c, t) => {
       for (let i = 0; i < n; i++) for (const [f, g] of [[196, 0.5], [392, 0.22], [587, 0.12], [786, 0.07]]) this._tone(t + i * 1.7, 3.2, f, f * 0.995, g, 'sine');

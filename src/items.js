@@ -48,6 +48,7 @@ export const ITEMS = {
   friedchicken: { kind: 'heal', name: '東海炸雞', heal: 40, cap: 100, time: 4, w: 5, key: 'Digit5' },
   guabao: { kind: 'heal', name: '刈包', heal: 100, cap: 100, time: 6, w: 9, key: 'Digit6' },
   icecream: { kind: 'boost', name: '東海冰淇淋', boost: 45, time: 3, w: 4, key: 'Digit7' },
+  milktea: { kind: 'heal', name: '罐裝奶茶', heal: 12, cap: 100, time: 1.5, w: 2, key: 'Digit8' },   // from vending machines
 
   // --- gear ----------------------------------------------------------------
   vest1: { kind: 'vest', name: '防彈背心 Lv.1', lv: 1, reduce: 0.30, dur: 200 },
@@ -64,14 +65,14 @@ for (const [id, d] of Object.entries(ITEMS)) d.id = id;
 
 export const BASE_CAPACITY = 80;
 export const FISTS = { id: 'fists', kind: 'melee', name: '空手', dmg: 20, rate: 0.45, range: 2.0, zoom: 62 };
-export const CONSUMABLES = ['chickenfeet', 'friedchicken', 'guabao', 'icecream'];
+export const CONSUMABLES = ['chickenfeet', 'friedchicken', 'guabao', 'icecream', 'milktea'];
 export const AMMO_ITEM = { '9mm': 'ammo_9mm', '556': 'ammo_556', '762': 'ammo_762', '12g': 'ammo_12g' };
 
 export const def = (id) => ITEMS[id];
 
 // Rarity tier 0..4 (grey / green / blue / purple / gold) — drives ring, beam and UI colours.
 export const RARITY = ['#c9ccd1', '#6fcf7c', '#5aa9ff', '#b57bff', '#ffb84a'];
-const HEAL_TIER = { chickenfeet: 0, friedchicken: 1, icecream: 1, guabao: 2 };
+const HEAL_TIER = { chickenfeet: 0, milktea: 0, friedchicken: 1, icecream: 1, guabao: 2 };
 export function tierOf(id) {
   const d = ITEMS[id];
   if (!d) return 0;

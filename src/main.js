@@ -16,7 +16,7 @@ import { Monsters } from './monsters.js';
 import { Events } from './events.js';
 import { Sfx } from './audio.js';
 import { TouchControls } from './touch.js';
-import { Props } from './world/props.js';
+import { Props, bikeMesh } from './world/props.js';
 import { Quest } from './quest.js';
 import { Story, FRAGMENTS, FORTUNES, ENDINGS, RUMORS } from './story.js';
 
@@ -105,7 +105,8 @@ async function main() {
   const story = new Story(store); if (q.has('reset')) story.reset();
   const props = new Props(scene, terrain, world);
   const propCount = props.populate(map, spawn);
-  const quest = new Quest({ story, props, ui, hud, player, inv, combat, loot, ghosts, monsters, events, sky, sfx, world, terrain, spawn });
+  player.bikeMesh = bikeMesh();
+  const quest = new Quest({ story, props, ui, hud, player, inv, combat, loot, targets, ghosts, monsters, events, sky, sfx, world, terrain, spawn });
   hud.markers = () => [...targets.alerted(), ...events.markers, ...quest.markers];
 
   targets.onKill = (tg, dist) => ui.kill(`${tg.kind === 'sentry' ? '擊毀' : '擊倒'} ${tg.name} · ${dist.toFixed(0)} m`);
@@ -256,7 +257,7 @@ async function main() {
     renderer.setSize(innerWidth, innerHeight);
   });
 
-  let time = 0, beatT = 0;
+  let time = 0, beatT = 0, lastStep = 0;
   // One frame of the game. dt is the clamped simulation step, raw the real elapsed time (for the FPS counter).
   function frame(dt, raw, render = true) {
     const running = (state === 'play' && input.locked) || (state === 'inv' && modal === 'inv');
@@ -271,6 +272,9 @@ async function main() {
       monsters.update(dt, player, cam, sky);
       events.update(dt, cam);
       quest.update(dt, input, true);
+      // footsteps: one tick each time a foot comes down
+      const stepN = Math.floor(player.phase / Math.PI);
+      if (stepN !== lastStep) { lastStep = stepN; if (player.onGround && !player.riding && Math.hypot(player.vel.x, player.vel.z) > 1) sfx.step(player.sprinting ? 1.5 : player.crouch ? 0.35 : 1); }
       loot.update(dt, player.pos.x, player.pos.z);
       fx.update(dt);
       loot.animate(time += dt);
@@ -283,7 +287,7 @@ async function main() {
       sky.update(0, camera);
       quest.update(0, input, false);
     }
-    props.update(dt, player.pos.x, player.pos.z, time);
+    props.update(dt, player.pos.x, player.pos.z, time, player.sprinting || !!player.riding);
     world.setNight(events.blackout > 0 ? 0 : sky.night); sfx.setNight(running ? sky.night : 0);
     // dread: grain and darkness creep in from the edges, the heart speeds up
     const dread = Math.max(ghosts.dread, monsters.dread);

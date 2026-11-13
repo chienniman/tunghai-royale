@@ -108,6 +108,9 @@ const ITEM_PARTS = {
     { s: [0.11, 0.015, 0.05], p: [0.015, 0.012, -0.045], c: 0x5f8f3a },
     { s: [0.1, 0.01, 0.04], p: [0.01, -0.012, -0.05], c: 0xd9b46a },
   ],
+  milktea: [ // can of milk tea
+    { cyl: [0.033, 0.12], p: [0, 0, 0], c: 0xb98a5a }, { cyl: [0.034, 0.04], p: [0, 0, 0], c: 0xf1e6d2 }, { cyl: [0.03, 0.006], p: [0, 0, -0.062], c: 0xc9ccd1 },
+  ],
   icecream: [ // waffle cone with a swirl of Tunghai dairy soft serve
     { cyl: [0.008, 0.13, 0.042], p: [0, 0, 0.02], c: 0xc99a55 },
     { cyl: [0.046, 0.02], p: [0, 0, -0.05], c: 0xb78645 },
@@ -132,7 +135,7 @@ const ITEM_PARTS = {
 };
 // Gear colour by level, matching what the character wears (see player.js).
 const LEVEL_COLOR = { 1: 0x7a7d66, 2: 0x47566b, 3: 0x2b2d32 };
-const UPRIGHT = { chickenfeet: true, friedchicken: true, icecream: true }; // modelled lying along z; stand them up on the ground
+const UPRIGHT = { chickenfeet: true, friedchicken: true, icecream: true, milktea: true }; // modelled lying along z; stand them up on the ground
 
 const geoCache = new Map();
 let mat = null;

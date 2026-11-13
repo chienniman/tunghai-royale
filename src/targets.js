@@ -124,6 +124,15 @@ export class Targets {
     return { dummies: this.list.length - sentries, sentries };
   }
 
+  // Take away the sentry guns near a place (story locations should not be under fire).
+  clearSentries(x, z, r) {
+    this.list = this.list.filter((t) => {
+      if (t.kind !== 'sentry' || Math.hypot(t.x - x, t.z - z) > r) return true;
+      this.scene.remove(t.obj); this.scene.remove(t.laser);
+      return false;
+    });
+  }
+
   // Ray (unit direction) vs. targets. Returns { t, target, zone } or null.
   raycast(ox, oy, oz, dx, dy, dz, maxT) {
     let best = null, bt = maxT;
@@ -204,7 +213,7 @@ export class Targets {
       if (tg.losT <= 0) {
         tg.losT = 0.15;
         tg.sees = false;
-        if (!player.dead && dist < SENTRY_RANGE && dist > 0.5) {
+        if (!player.dead && !player.talking && dist < SENTRY_RANGE && dist > 0.5) {   // they hold fire while you are in conversation
           const hit = this.world.raycast(hx, hy, hz, dx / dist, dy / dist, dz / dist, dist);
           tg.sees = !hit || hit.t > dist - 0.4;
         }

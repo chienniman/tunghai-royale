@@ -109,6 +109,7 @@ export class Combat {
       if (this.use.t <= 0) this._finishUse();
     }
 
+    if (p.riding || p.talking) { input.consumeClick(0); return; }   // hands are busy
     const w = this.weapon;
     const trigger = w.kind === 'weapon' && w.auto ? input.button(0) : input.consumeClick(0);
     if (trigger && this.cd <= 0) {

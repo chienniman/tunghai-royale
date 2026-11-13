@@ -230,6 +230,46 @@ export const ENDINGS = {
 「對。」學長說，「所以沒有為止。」`,
     effect: '血月不再落下。她不再躲了。',
   },
+  // Only offered if 伍伯 has told you what he did with the letter (see script.js).
+  deliver: {
+    needs: 'confession',
+    choice: '把信交給伍伯。這一趟本來就該他送', name: '限　時',
+    now: `你把信交給伍伯。
+
+他的手抖得很厲害，信封差點掉進溪裡。
+
+他走上橋。走得很慢，七十一歲的人，每一步都像踩在五十年前的雨裡。
+
+她看著他走過來。她認得他——那個每天早上五點在教堂掃地、被她一句早安嚇到拿不穩掃把的工友。
+
+「沈同學。」他說。聲音是十九歲的。「妳的限時信。對不起，送晚了。」
+
+他把信遞出去，像當年應該做的那樣：雙手，微微鞠躬。
+
+她接過去，讀了很久。讀到最後一行，她往相思林的方向看了一眼，然後看回這個老人。
+
+她做了一件五十年來沒有做過的事。
+
+她說：「早安。」
+
+天亮了。`,
+    future: `【五十年後　民國一六四年　秋】
+
+東海大學郵局門口有一塊小銅牌，很少人注意：
+
+「本局自民國一一四年起，颱風天限時信照常投遞。
+　　　　　　　　　　　　——紀念一位退休工友」
+
+局裡的老員工說，那位工友退休以後還是每天早上五點去掃教堂，一直掃到九十幾歲。
+
+有人問他為什麼不休息。
+他說，有人會跟他說早安。
+
+沒有人聽到過。
+
+但是教堂的詩歌本，從那一年以後，再也沒有夾過照片。`,
+    effect: '女鬼不再出現。伍伯明天早上五點還是會去掃教堂。',
+  },
   stay: {
     choice: '什麼都不做。在她旁邊坐下來，陪她等', name: '相　陪',
     now: `你把信和戒指收回口袋。
@@ -278,11 +318,21 @@ export class Story {
     this.rumors = [];       // rumor ids read
     this.ending = null;     // 'release' | 'burn' | 'stay'
     this.log = [];          // 現在: what the player did, newest last
+    this.introSeen = false; // the opening has been read
+    this.talked = [];       // stages at which 伍伯 has been heard out
+    this.phone = [];        // messages received: { from, text, stamp }
+    this.flags = {};        // one-off beats that have already happened (call answered, ...)
     this.load();
   }
 
   get stage() { return this.found.length; }                 // 0..6
   get complete() { return this.found.length >= FRAGMENTS.length; }
+  get confessed() { return this.talked.includes(4); }           // he has told you what he did with the letter
+  // Endings you may choose right now.
+  get choices() { return Object.entries(ENDINGS).filter(([, e]) => !e.needs || (e.needs === 'confession' && this.confessed)).map(([id]) => id); }
+  talk(stage) { if (!this.talked.includes(stage)) { this.talked.push(stage); this.save(); return true; } return false; }
+  receive(msg) { this.phone.push(msg); if (this.phone.length > 40) this.phone.shift(); this.save(); }
+  flag(name) { if (this.flags[name]) return false; this.flags[name] = 1; this.save(); return true; }
   get nextFragment() { return this.ending ? null : FRAGMENTS[this.found.length] || null; }
   has(id) { return this.found.includes(id); }
 
@@ -314,7 +364,7 @@ export class Story {
   readRumor(id) { if (!this.rumors.includes(id)) { this.rumors.push(id); this.save(); return true; } return false; }
 
   choose(ending, clock = '') {
-    if (!this.complete || this.ending || !ENDINGS[ending]) return null;
+    if (!this.complete || this.ending || !this.choices.includes(ending)) return null;
     this.ending = ending;
     this.log.push(`${clock}　在女鬼橋上：${ENDINGS[ending].name.replace('　', '')}`);
     this.save();
@@ -327,10 +377,10 @@ export class Story {
     return set ? set[Math.floor(rng() * set.length)] : '';
   }
 
-  reset() { this.found = []; this.fortunes = []; this.rumors = []; this.ending = null; this.log = []; this.save(); }
+  reset() { this.found = []; this.fortunes = []; this.rumors = []; this.ending = null; this.log = []; this.introSeen = false; this.talked = []; this.phone = []; this.flags = {}; this.save(); }
 
   save() {
-    try { this.storage?.setItem(KEY, JSON.stringify({ found: this.found, fortunes: this.fortunes, rumors: this.rumors, ending: this.ending, log: this.log.slice(-40) })); } catch { /* private mode */ }
+    try { this.storage?.setItem(KEY, JSON.stringify({ found: this.found, fortunes: this.fortunes, rumors: this.rumors, ending: this.ending, log: this.log.slice(-40), introSeen: this.introSeen, talked: this.talked, phone: this.phone, flags: this.flags })); } catch { /* private mode */ }
   }
 
   load() {
@@ -341,8 +391,12 @@ export class Story {
       this.found = []; for (const id of d.found || []) { if (id === ids[this.found.length]) this.found.push(id); else break; }
       this.fortunes = (d.fortunes || []).filter((i) => FORTUNES[i]);
       this.rumors = (d.rumors || []).filter((id) => RUMORS.some((r) => r.id === id));
-      this.ending = ENDINGS[d.ending] && this.complete ? d.ending : null;
       this.log = Array.isArray(d.log) ? d.log : [];
+      this.introSeen = !!d.introSeen;
+      this.talked = (d.talked || []).filter((n) => Number.isInteger(n) && n >= 0 && n <= FRAGMENTS.length);
+      this.phone = Array.isArray(d.phone) ? d.phone.filter((m) => m && m.from && m.text).slice(-40) : [];
+      this.flags = d.flags && typeof d.flags === 'object' ? d.flags : {};
+      this.ending = ENDINGS[d.ending] && this.complete ? d.ending : null;
     } catch { /* corrupt save: start over */ }
   }
 }

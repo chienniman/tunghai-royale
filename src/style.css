@@ -131,6 +131,23 @@ body.touch #event { top: 70px; min-width: 220px; padding: 5px 18px 6px; } body.t
 #interact i { position: absolute; left: 0; bottom: 0; height: 3px; width: 0; background: #8fc8ff; }
 #subtitle { position: absolute; left: 50%; bottom: 128px; transform: translateX(-50%); max-width: 70vw; padding: 6px 18px; text-align: center; opacity: 0;
   font-size: 19px; font-weight: 500; letter-spacing: 3px; color: #e6eeff; background: rgba(0, 0, 0, .45); text-shadow: 0 0 12px rgba(140, 180, 255, .7), 0 2px 3px #000; }
+#subtitle.narr { font-size: 16px; font-weight: 400; letter-spacing: 1.5px; color: #e9e4d6; background: rgba(0, 0, 0, .38); text-shadow: 0 2px 3px #000; }
+#subtitle.narr.radio { font-family: Consolas, monospace; color: #d9c98a; }
+#dialog { position: absolute; left: 50%; bottom: 112px; transform: translateX(-50%); width: min(640px, 76vw); padding: 14px 20px 12px; display: none;
+  background: linear-gradient(180deg, rgba(14, 18, 24, .9), rgba(8, 10, 14, .94)); border: 1px solid var(--line); border-left: 3px solid var(--gold); border-radius: 3px; }
+#dialog.show { display: block; }
+#dialog b { display: block; margin-bottom: 5px; font-size: 13px; letter-spacing: 3px; color: var(--gold); }
+#dialog p { margin: 0; font-size: 17px; line-height: 1.75; letter-spacing: 1px; }
+#dialog small { display: block; margin-top: 7px; text-align: right; font: 600 12px var(--num); letter-spacing: 2px; color: #8fc8ff; }
+#phone { position: absolute; left: 20px; bottom: 104px; width: 280px; display: flex; flex-direction: column; gap: 6px; }
+#phone .msg { padding: 8px 12px 9px; background: rgba(238, 240, 244, .94); color: #14161a; border-radius: 12px 12px 12px 3px; text-shadow: none; box-shadow: 0 6px 18px rgba(0, 0, 0, .45); }
+#phone .msg b { font-size: 12px; letter-spacing: 1px; color: #2f6fb7; } #phone .msg small { float: right; font: 600 11px var(--num); opacity: .55; }
+#phone .msg span { display: block; margin-top: 2px; font-size: 14px; line-height: 1.5; }
+#phone .msg.unknown { background: rgba(16, 10, 12, .95); color: #e9dede; } #phone .msg.unknown b { color: #c0392b; }
+#chapter { position: absolute; left: 0; right: 0; top: 40%; text-align: center; opacity: 0; }
+#dialog.show + #phone { display: none; }   /* one voice at a time */
+#chapter small { display: block; font-size: 15px; letter-spacing: 12px; color: var(--gold); }
+#chapter b { display: block; margin-top: 10px; font-size: 44px; font-weight: 900; letter-spacing: 10px; text-shadow: 0 4px 24px #000, 0 0 2px #000; }
 #progress { position: absolute; left: 50%; top: calc(50% + 72px); transform: translateX(-50%); width: 220px; text-align: center; opacity: 0; }
 #progress.show { opacity: 1; }
 #progress-fill { height: 100%; width: 0; background: linear-gradient(90deg, var(--gold), var(--gold-hi)); }
@@ -238,6 +255,8 @@ body.touch #event { top: 70px; min-width: 220px; padding: 5px 18px 6px; } body.t
 #journal-body .e b { display: block; font-size: 13px; } #journal-body .e small { opacity: .6; font-size: 11px; }
 #journal-body .e[data-read] { cursor: pointer; } #journal-body .e[data-read]:hover { background: rgba(255, 255, 255, .12); }
 #journal-body .e.lock { opacity: .35; } #journal-body .e.verse { white-space: pre-wrap; font-family: "Noto Serif TC", "PMingLiU", serif; }
+#journal-body h3.sub { margin-top: 14px; font-size: 12px; letter-spacing: 4px; opacity: .8; }
+#journal-body .e.unknown { border-left-color: #c0392b; color: #e9c9c9; }
 #journal-body .goal { padding: 8px 10px; margin-bottom: 8px; font-size: 13px; line-height: 1.6; background: rgba(143, 200, 255, .12); border-left: 2px solid #8fc8ff; }
 .c-panel { width: min(560px, calc(100% - 32px)); padding: 26px 28px; text-align: center; background: linear-gradient(180deg, rgba(22, 28, 36, .96), rgba(10, 12, 16, .97)); border: 1px solid var(--line); border-top: 2px solid #8fc8ff; border-radius: 4px; }
 .c-panel p { margin: 0 0 18px; font-size: 16px; line-height: 1.8; letter-spacing: 1px; }
@@ -245,6 +264,9 @@ body.touch #event { top: 70px; min-width: 220px; padding: 5px 18px 6px; } body.t
   background: rgba(255, 255, 255, .07); border: 1px solid rgba(255, 255, 255, .2); border-radius: 3px; cursor: pointer; }
 #choice-list button:hover { background: rgba(143, 200, 255, .2); border-color: #8fc8ff; }
 body.touch #interact { pointer-events: auto; z-index: 13; padding: 9px 16px 9px 10px; } body.touch #interact b { display: none; }
+body.touch #dialog { bottom: 84px; padding: 9px 14px 8px; pointer-events: auto; z-index: 13; } body.touch #dialog p { font-size: 14px; }
+body.touch #phone { left: 12px; bottom: auto; top: 96px; width: 210px; } body.touch #phone .msg span { font-size: 12px; }
+body.touch #chapter b { font-size: 28px; }
 body.touch #objective { max-width: 220px; font-size: 11px; margin-top: 3px; } body.touch #subtitle { bottom: 132px; font-size: 15px; }
 body.touch .paper { padding: 14px 20px; max-height: 94vh; } body.touch .paper h2 { font-size: 19px; margin-top: 8px; } body.touch .r-body { font-size: 13px; line-height: 1.8; margin: 10px 0; }
 body.touch #journal-body .rumors .list { grid-template-columns: repeat(3, 1fr); }

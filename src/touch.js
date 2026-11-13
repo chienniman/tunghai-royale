@@ -87,6 +87,7 @@ export class TouchControls {
     const use = document.getElementById('interact');
     use.addEventListener('pointerdown', (e) => { e.preventDefault(); input.keys.add('KeyE'); input.press('KeyE'); });
     for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) use.addEventListener(ev, () => input.keys.delete('KeyE'));
+    document.getElementById('dialog').addEventListener('pointerdown', (e) => { e.preventDefault(); input.press('KeyE'); }); // tap the box to go on
   }
 
   show(on) { this.root.classList.toggle('hidden', !on); if (!on) this.resetAds(); }

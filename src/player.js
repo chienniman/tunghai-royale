@@ -152,6 +152,7 @@ export class Player {
     // set by the combat system every frame
     this.armed = false; this.sens = 1; this.speedMul = 1; this.noSprint = false;
     this.ads = 0; this.reloadK = 0; this.recoil = 0; this.eating = false; this.grabbed = false;
+    this.riding = null; this.talking = false; this.resting = false; this.bikeMesh = null;
     this.punchT = 0; this.deadT = 0;
     this.held = null; this.heldId = null;
     this.onDamage = null; this.onDeath = null;
@@ -167,7 +168,7 @@ export class Player {
     this.colliders.resolve(this.pos, RADIUS);
     this.pos.y = this.terrain.heightAt(this.pos.x, this.pos.z);
     this.yaw = yaw; this.facing = yaw; this.pitch = -0.1; this.vel.set(0, 0, 0);
-    this.hp = 100; this.boost = 0; this.dead = false; this.deadT = 0; this.crouch = false; this.grabbed = false; this.resting = false;
+    this.hp = 100; this.boost = 0; this.dead = false; this.deadT = 0; this.crouch = false; this.grabbed = false; this.resting = false; this.talking = false;
     this.rig.body.rotation.set(0, 0, 0);
   }
 
@@ -182,6 +183,9 @@ export class Player {
   }
 
   heal(amount, cap = 100) { if (this.hp < cap) this.hp = Math.min(cap, this.hp + amount); }
+
+  // Put the bicycle under the rider (the mesh is handed over by main.js).
+  setBike(on) { if (this.bikeMesh) { if (on) this.rig.root.add(this.bikeMesh); else this.rig.root.remove(this.bikeMesh); } }
 
   // Show a weapon model in the hands (null = empty hands).
   setHeld(id, mesh) {
@@ -205,23 +209,24 @@ export class Player {
     const sens = 0.0022 * this.sens;
     this.yaw -= mx * sens; this.pitch = THREE.MathUtils.clamp(this.pitch - my * sens, -1.25, 0.95);
 
-    if (input.consumePressed('KeyC')) this.crouch = !this.crouch;
+    if (input.consumePressed('KeyC') && !this.riding) this.crouch = !this.crouch;
     const f = THREE.MathUtils.clamp((input.down('KeyW') ? 1 : 0) - (input.down('KeyS') ? 1 : 0) + input.axis.y, -1, 1);
     const s = THREE.MathUtils.clamp((input.down('KeyD') ? 1 : 0) - (input.down('KeyA') ? 1 : 0) + input.axis.x, -1, 1);
-    this.sprinting = (input.down('ShiftLeft') || input.sprint) && f > 0.5 && !this.crouch && !this.noSprint;
+    this.sprinting = (input.down('ShiftLeft') || input.sprint) && f > 0.5 && !this.crouch && !this.noSprint && !this.riding;
     if (this.sprinting) this.crouch = false;
     let speed = (this.crouch ? CROUCH : this.sprinting ? SPRINT : WALK) * this.speedMul;
-    if (this.grabbed || this.resting) speed = 0; // something has hold of you / sitting on a bench
+    if (this.riding) speed = f > 0 ? 9.6 : 3.2;          // bicycles do not strafe well
+    if (this.grabbed || this.resting || this.talking) speed = 0; // held by something / sitting / in conversation
     if (this.boost > 60) speed *= 1.06;
 
     const sin = Math.sin(this.yaw), cos = Math.cos(this.yaw);
     let wx = -sin * f + cos * s, wz = -cos * f - sin * s;
     const wl = Math.hypot(wx, wz); if (wl > 0) { wx = wx / wl * speed; wz = wz / wl * speed; }
-    const accel = this.onGround ? 12 : 2;
+    const accel = this.riding ? 3.2 : this.onGround ? 12 : 2;
     const k = 1 - Math.exp(-accel * dt);
     this.vel.x += (wx - this.vel.x) * k; this.vel.z += (wz - this.vel.z) * k;
 
-    if (this.onGround && input.down('Space') && !this.grabbed && !this.resting) { this.vel.y = JUMP; this.onGround = false; this.crouch = false; }
+    if (this.onGround && input.down('Space') && !this.grabbed && !this.resting && !this.riding && !this.talking) { this.vel.y = JUMP; this.onGround = false; this.crouch = false; }
     this._physics(dt);
 
     if (this.boost > 0) { this.boost = Math.max(0, this.boost - dt); this.heal(0.8 * dt); }
@@ -302,7 +307,8 @@ export class Player {
     const kneeGain = this.sprinting ? 1.5 : 1.0;
     const leg = (limb, hip, phase, crThigh, crKnee) => {
       const sw = Math.sin(phase) * amp, lift = Math.max(0, Math.cos(phase)) * amp * kneeGain + 0.06;
-      if (!this.onGround) legDirs(0, -1, limb === legL ? 0.55 : -0.25, limb === legL ? 0.9 : 0.5, _d1, _d2);
+      if (this.riding) legDirs(0, -1, 0.95 + Math.sin(phase) * 0.42, 1.3 - Math.sin(phase) * 0.5, _d1, _d2);   // pedalling
+      else if (!this.onGround) legDirs(0, -1, limb === legL ? 0.55 : -0.25, limb === legL ? 0.9 : 0.5, _d1, _d2);
       else if (P.crouch > 0.01) {
         // blend the walk cycle with a kneeling pose; keep a little swing so crouch-walking still reads
         const th = lerp(sw, crThigh + sw * 0.35, P.crouch), kn = lerp(lift, crKnee + lift * 0.3, P.crouch);
@@ -315,8 +321,8 @@ export class Player {
     leg(legR, _hipR, this.phase + Math.PI, 0.25, 1.75);
     const low = this._feet();
     // keep the lower foot on the ground whatever the pose
-    body.position.y = lerp(body.position.y, FOOT_H - low + (this.onGround ? 0 : 0.05), ease(18));
-    body.rotation.x = lerp(body.rotation.x, this.sprinting ? -0.2 : -0.16 * P.crouch - 0.03 * move, ease(10));
+    body.position.y = lerp(body.position.y, this.riding ? 0.02 : FOOT_H - low + (this.onGround ? 0 : 0.05), ease(18));   // on the saddle, feet off the ground
+    body.rotation.x = lerp(body.rotation.x, this.riding ? -0.34 : this.sprinting ? -0.2 : -0.16 * P.crouch - 0.03 * move, ease(10));
     body.rotation.z = lerp(body.rotation.z, this.sprinting ? Math.sin(this.phase) * 0.03 : 0, ease(10));
 
     // --- arms ---
@@ -356,6 +362,10 @@ export class Player {
         reachLimb(armR, _s.set(SHOULDER_X, SHOULDER_Y, 0), _t, _p.set(0.8, -1, 0.3));
         reachLimb(armL, _s.set(-SHOULDER_X, SHOULDER_Y, 0), _t.set(-0.1, 1.36, -0.26), _p.set(-0.8, -1, 0.3));
       } else arm(armR, 1, this.phase);
+    }
+    if (this.riding) { // both hands on the bars
+      reachLimb(armL, _s.set(-SHOULDER_X, SHOULDER_Y, 0), _t.set(-0.22, 1.02, -0.5), _p.set(-0.6, -1, 0.4));
+      reachLimb(armR, _s.set(SHOULDER_X, SHOULDER_Y, 0), _t.set(0.22, 1.02, -0.5), _p.set(0.6, -1, 0.4));
     }
     if (this.eating) { // left hand brings the food up to the mouth
       _t.set(-0.02, 1.6 + Math.sin(performance.now() / 110) * 0.015, -0.13);

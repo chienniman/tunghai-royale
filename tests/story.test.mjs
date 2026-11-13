@@ -66,3 +66,29 @@ test('story data is complete', () => {
   for (const e of Object.values(ENDINGS)) for (const k of ['choice', 'name', 'now', 'future', 'effect']) assert.ok(e[k]);
   assert.equal(new Set(RUMORS.map((r) => r.id)).size, RUMORS.length);
 });
+
+test('the fourth ending is only offered once 伍伯 has confessed', () => {
+  const s = new Story();
+  for (const f of FRAGMENTS) s.collect(f.id);
+  assert.deepEqual(s.choices, ['release', 'burn', 'stay']);
+  assert.equal(s.choose('deliver'), null);
+  assert.equal(s.talk(4), true);
+  assert.equal(s.talk(4), false, 'each conversation counts once');
+  assert.ok(s.choices.includes('deliver'));
+  assert.equal(s.choose('deliver').name, ENDINGS.deliver.name);
+});
+
+test('the opening, conversations, phone and one-off beats survive a reload', () => {
+  const store = memory();
+  const a = new Story(store);
+  a.introSeen = true; a.talk(0); a.talk(1); a.receive({ from: '阿哲', text: '在嗎', stamp: '14:00' });
+  assert.equal(a.flag('ph:start'), true);
+  assert.equal(a.flag('ph:start'), false, 'a beat fires once');
+  const b = new Story(store);
+  assert.equal(b.introSeen, true);
+  assert.deepEqual(b.talked, [0, 1]);
+  assert.equal(b.phone.length, 1);
+  assert.equal(b.flag('ph:start'), false, 'and stays fired after reloading');
+  for (let i = 0; i < 60; i++) b.receive({ from: 'x', text: String(i), stamp: '' });
+  assert.ok(b.phone.length <= 40, 'the phone log is capped');
+});
